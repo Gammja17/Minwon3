@@ -75,7 +75,7 @@ func add_mark(kind: String, text: String, at: Vector2) -> void:
 	s.modulate.a = 0.0
 	var tw := create_tween().set_parallel()
 	tw.tween_property(s, "scale", Vector2.ONE, 0.09).set_ease(Tween.EASE_IN)
-	tw.tween_property(s, "modulate:a", 0.92, 0.06)
+	tw.tween_property(s, "modulate:a", 0.68, 0.06)   # 인주처럼 밑의 글자가 비친다
 
 
 func clear_marks() -> void:

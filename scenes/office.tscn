@@ -261,19 +261,19 @@ text = "햇살동 행정정보시스템"
 [node name="TabLookup" type="Button" parent="Monitor/Screen/VBox/Header/HBox"]
 unique_name_in_owner = true
 layout_mode = 2
-theme_override_font_sizes/font_size = 14
+theme_override_font_sizes/font_size = 15
 text = "전산 조회"
 
 [node name="TabDept" type="Button" parent="Monitor/Screen/VBox/Header/HBox"]
 unique_name_in_owner = true
 layout_mode = 2
-theme_override_font_sizes/font_size = 14
+theme_override_font_sizes/font_size = 15
 text = "부서 안내"
 
 [node name="TabMsg" type="Button" parent="Monitor/Screen/VBox/Header/HBox"]
 unique_name_in_owner = true
 layout_mode = 2
-theme_override_font_sizes/font_size = 14
+theme_override_font_sizes/font_size = 15
 text = "메신저"
 
 [node name="ScreenScroll" type="ScrollContainer" parent="Monitor/Screen/VBox"]
@@ -299,19 +299,19 @@ theme_override_constants/separation = 14
 [node name="RepLabel" type="Label" parent="Monitor/Screen/VBox/Taskbar/HBox"]
 unique_name_in_owner = true
 layout_mode = 2
-theme_override_font_sizes/font_size = 14
+theme_override_font_sizes/font_size = 15
 text = "평판 50"
 
 [node name="PenLabel" type="Label" parent="Monitor/Screen/VBox/Taskbar/HBox"]
 unique_name_in_owner = true
 layout_mode = 2
-theme_override_font_sizes/font_size = 14
+theme_override_font_sizes/font_size = 15
 text = "벌점 0"
 
 [node name="MoneyLabel" type="Label" parent="Monitor/Screen/VBox/Taskbar/HBox"]
 unique_name_in_owner = true
 layout_mode = 2
-theme_override_font_sizes/font_size = 14
+theme_override_font_sizes/font_size = 15
 text = "잔고 38만 원"
 
 [node name="Spacer" type="Control" parent="Monitor/Screen/VBox/Taskbar/HBox"]
@@ -320,7 +320,7 @@ size_flags_horizontal = 3
 
 [node name="StressName" type="Label" parent="Monitor/Screen/VBox/Taskbar/HBox"]
 layout_mode = 2
-theme_override_font_sizes/font_size = 14
+theme_override_font_sizes/font_size = 15
 text = "스트레스"
 
 [node name="StressBar" type="ProgressBar" parent="Monitor/Screen/VBox/Taskbar/HBox"]
@@ -375,7 +375,7 @@ theme_override_colors/font_color = Color(0.7, 0.72, 0.75, 1)
 theme_override_colors/font_outline_color = Color(0.12, 0.08, 0.05, 1)
 theme_override_constants/outline_size = 5
 theme_override_fonts/font = ExtResource("font_bold")
-theme_override_font_sizes/font_size = 14
+theme_override_font_sizes/font_size = 15
 text = "서류 넣는 곳"
 horizontal_alignment = 1
 vertical_alignment = 1

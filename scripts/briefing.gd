@@ -16,7 +16,7 @@ func _ready() -> void:
 		for r in rules:
 			text += "\n· %s: %s" % [r["title"], r["text"]]
 	text += "\n\n[color=#756c60]규정 전체와 부서 안내표는 창구의 [규정집]에서 언제든 볼 수 있어요.[/color]"
-	%Memo.text = text
+	%Memo.text = DocView.keep_words(text)
 	%StartBtn.pressed.connect(func():
 		Game.start_day()
 		get_tree().change_scene_to_file("res://scenes/office.tscn"))

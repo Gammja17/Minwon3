@@ -41,7 +41,7 @@ func _render_summary() -> void:
 	var sms := Game.mom_sms()
 	if sms != "":
 		t += "\n[color=#9fd3ff]엄마의 문자[/color]\n%s\n" % sms
-	%Summary.text = t
+	%Summary.text = DocView.keep_words(t)
 
 
 func _show_evening_choices() -> void:
@@ -62,7 +62,7 @@ func _button(text: String, cb: Callable) -> void:
 
 
 func _mom(send: bool) -> void:
-	%Result.text = Game.mom_choice(send)
+	%Result.text = DocView.keep_words(Game.mom_choice(send))
 	%Result.visible = true
 	_render_summary()
 	_show_evening_choices()
@@ -72,7 +72,7 @@ func _choose(key: String) -> void:
 	for b in %Choices.get_children():
 		b.disabled = true
 	var prev: String = %Result.text + "\n\n" if %Result.visible else ""
-	%Result.text = prev + Game.evening(key)
+	%Result.text = DocView.keep_words(prev + Game.evening(key))
 	%Result.visible = true
 	%NextBtn.visible = true
 

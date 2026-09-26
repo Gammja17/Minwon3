@@ -115,6 +115,9 @@ func _style() -> void:
 	%Taskbar.add_theme_stylebox_override("panel", _box(Color("2b2f36"), Color("2b2f36"), 0, 4))
 	%Board.add_theme_stylebox_override("panel", _box(Color("0d0f12"), Color("3b3f46"), 4, 8))
 	slot.add_theme_stylebox_override("panel", StyleBoxEmpty.new())
+	var pad := StyleBoxEmpty.new()   # 모니터 글자가 화면 가장자리에 붙지 않게
+	pad.set_content_margin_all(10)
+	%ScreenScroll.add_theme_stylebox_override("panel", pad)
 	%Talk.add_theme_stylebox_override("panel", _box(Color(0.1, 0.11, 0.14, 0.93), Color("3b3f46"), 4, 10))
 	for b in [stamp_ok, stamp_no, phone_btn, guard_btn, rules_btn, inspect_btn]:
 		_prop(b)
@@ -185,7 +188,7 @@ func _check_events() -> void:
 		noon_pending = true
 		Game.flags["noh_asked"] = true
 		log_box.clear()
-		log_box.append_text("[b][color=%s]노 주무관[/color][/b]  저기, 3번. 내가 오늘 점심에 은행 볼일이 있어서 좀 길게 다녀와야 하거든. 그동안 2번 창구 대기하는 분들 좀 같이 봐 줄 수 있어?\n" % C_THEM)
+		_log("[b][color=%s]노 주무관[/color][/b]  저기, 3번. 내가 오늘 점심에 은행 볼일이 있어서 좀 길게 다녀와야 하거든. 그동안 2번 창구 대기하는 분들 좀 같이 봐 줄 수 있어?\n" % C_THEM)
 		_refresh_all()
 
 
@@ -196,12 +199,12 @@ func _noon(accept: bool) -> void:
 		Game.noh = clampi(Game.noh + 15, 0, 100)
 		Game.flags["noh_lunch_helped"] = true
 		_say_me("네, 다녀오세요. 제가 볼게요.")
-		log_box.append_text("[b][color=%s]노 주무관[/color][/b]  고마워! 이 은혜는 꼭 갚을게.\n" % C_THEM)
+		_log("[b][color=%s]노 주무관[/color][/b]  고마워! 이 은혜는 꼭 갚을게.\n" % C_THEM)
 		_slip("2번 창구 대기자 네 명이 3번으로 넘어왔다.", SLIP_GOOD)
 	else:
 		Game.noh = clampi(Game.noh - 10, 0, 100)
 		_say_me("죄송해요, 저도 대기가 밀려서요.")
-		log_box.append_text("[b][color=%s]노 주무관[/color][/b]  ......그래, 알았어. (서운한 얼굴로 자리로 돌아간다)\n" % C_THEM)
+		_log("[b][color=%s]노 주무관[/color][/b]  ......그래, 알았어. (서운한 얼굴로 자리로 돌아간다)\n" % C_THEM)
 	_refresh_top()
 	_refresh_all()
 
@@ -393,7 +396,7 @@ func _show_reason_slip() -> void:
 		b.toggle_mode = true
 		b.button_group = group
 		b.alignment = HORIZONTAL_ALIGNMENT_LEFT
-		b.add_theme_font_size_override("font_size", 15)
+		b.add_theme_font_size_override("font_size", 16)
 		b.toggled.connect(func(on: bool):
 			b.text = ("■ " if on else "□ ") + Content.REASONS[key]
 			if on:
@@ -402,7 +405,7 @@ func _show_reason_slip() -> void:
 	var card := DocView._paper("반려 사유서", rows)
 	card.custom_minimum_size.x = 250
 	reason_paper = _new_paper({"kind": "reason"}, card, false)
-	reason_paper.position = Vector2(780, 20)
+	reason_paper.position = Vector2(780, 2)
 
 
 ## 모니터 [부서 안내]에서 안내문을 뽑는다
@@ -581,8 +584,8 @@ func dalsu_available() -> bool:
 
 func _dalsu_help() -> void:
 	Game.dalsu_used = true
-	log_box.append_text("[color=%s][i](대기석에서 안내 조끼를 입은 박달수 씨가 다가온다)[/i][/color]\n" % C_ACT)
-	log_box.append_text("[b][color=%s]박달수[/color][/b]  이봐요, 젊은 사람 일하는 데서 그렇게 소리 지르면 쓰나. 나도 여기서 소리 좀 질러 봤는데, 아무 소용 없어. 저기 앉아서 숨 좀 돌리고 와요.\n" % C_THEM)
+	_log("[color=%s][i](대기석에서 안내 조끼를 입은 박달수 씨가 다가온다)[/i][/color]\n" % C_ACT)
+	_log("[b][color=%s]박달수[/color][/b]  이봐요, 젊은 사람 일하는 데서 그렇게 소리 지르면 쓰나. 나도 여기서 소리 좀 질러 봤는데, 아무 소용 없어. 저기 앉아서 숨 좀 돌리고 와요.\n" % C_THEM)
 	Game.pass_time(2)
 	_calm(c["ignore"]["then"])
 
@@ -638,7 +641,7 @@ func _call() -> void:
 		key = "deny"
 	elif String(rec.get("lost", "")) != "":
 		key = "lost"
-	log_box.append_text("[b][color=#9fd3ff]전화[/color][/b]  %s\n" % Content.PHONE[key])
+	_log("[b][color=#9fd3ff]전화[/color][/b]  %s\n" % Content.PHONE[key])
 	if key != "ok" and c.has("flaw"):
 		_say_them(c["flaw"]["reply"])
 		if not c.get("_found", false):
@@ -893,11 +896,11 @@ func _show_depts() -> void:
 		var info := VBoxContainer.new()
 		info.size_flags_horizontal = Control.SIZE_EXPAND_FILL
 		info.add_child(_text("%s  ·  %s  ·  관계 %s" % [d["name"], d["where"], word], 16, INK, true, 360))
-		info.add_child(_text(d["jobs"], 14, Color("4a5561"), false, 360))
+		info.add_child(_text(d["jobs"], 15, Color("3a444f"), false, 360))
 		row.add_child(info)
 		var b := Button.new()
 		b.text = "안내문 출력"
-		b.add_theme_font_size_override("font_size", 14)
+		b.add_theme_font_size_override("font_size", 15)
 		b.disabled = not can
 		b.pressed.connect(print_slip.bind(key))
 		row.add_child(b)
@@ -940,7 +943,7 @@ func _slip(text: String, color: Color) -> void:
 	sb.set_corner_radius_all(4)
 	sb.set_content_margin_all(10)
 	toast.add_theme_stylebox_override("panel", sb)
-	toast_label.text = ("%s: %s" % [who, body]) if who != "알림" else body
+	toast_label.text = DocView.keep_words(("%s: %s" % [who, body]) if who != "알림" else body)
 	toast.visible = true
 	toast.modulate.a = 1.0
 	if toast_tween:
@@ -991,7 +994,7 @@ func _clear_overlay(title: String) -> void:
 
 func _text(t: String, font_size: int, color: Color, bold := false, width := 680) -> Label:
 	var l := Label.new()
-	l.text = t
+	l.text = DocView.keep_words(t)
 	if bold:
 		l.add_theme_font_override("font", BOLD)
 	l.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
@@ -1094,17 +1097,21 @@ func _paint(node: Control, kind: String) -> void:
 
 func _say_them(line: String) -> void:
 	if line.begins_with("("):
-		log_box.append_text("[color=%s][i]%s[/i][/color]\n" % [C_ACT, line])
+		_log("[color=%s][i]%s[/i][/color]\n" % [C_ACT, line])
 	else:
-		log_box.append_text("[b][color=%s]민원인[/color][/b]  %s\n" % [C_THEM, line])
+		_log("[b][color=%s]민원인[/color][/b]  %s\n" % [C_THEM, line])
 
 
 func _say_me(line: String) -> void:
-	log_box.append_text("[b][color=%s]나[/color][/b]  %s\n" % [C_ME, line])
+	_log("[b][color=%s]나[/color][/b]  %s\n" % [C_ME, line])
+
+
+func _log(t: String) -> void:
+	log_box.append_text(DocView.keep_words(t))
 
 
 func _sys(line: String) -> void:
-	log_box.append_text("[color=%s]%s[/color]\n" % [C_SYS, line])
+	_log("[color=%s]%s[/color]\n" % [C_SYS, line])
 
 
 func _shake(node: Control, amount: float) -> void:

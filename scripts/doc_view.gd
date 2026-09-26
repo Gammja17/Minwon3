@@ -4,7 +4,7 @@ extends RefCounted
 ## pick이 주어지면 각 칸을 누를 수 있다(지적하기). pick(fid, node, ev) — ev는 "click", "enter", "exit".
 
 const INK := Color("2b2723")
-const MUTED := Color("4f473e")
+const MUTED := Color("3d352c")
 const BOLD: Font = preload("res://assets/fonts/Pretendard-SemiBold.woff2")
 const PIXEL: Font = preload("res://assets/fonts/Mulmaru.woff2")
 const PAPER := Color("f3eee2")
@@ -56,7 +56,7 @@ static func record_card(name: String, rec: Variant, pick := Callable(), show_pho
 		var ph := photo(rec["look"], Vector2(72, 88))
 		var line := HBoxContainer.new()
 		line.mouse_filter = Control.MOUSE_FILTER_IGNORE
-		var k := _label("전산 사진", 15, MUTED)
+		var k := _label("전산 사진", 16, MUTED)
 		k.custom_minimum_size = Vector2(112, 0)
 		line.add_child(k)
 		line.add_child(_wrap(ph, pre + "photo", pick))
@@ -189,7 +189,7 @@ static func _seal_row(who: String, seal: String) -> Control:
 	hb.alignment = BoxContainer.ALIGNMENT_END
 	hb.add_child(_label("위임하는 사람  %s" % who, 15, INK))
 	if seal == "없음":
-		hb.add_child(_label("(날인 없음)", 15, MUTED))
+		hb.add_child(_label("(날인 없음)", 16, MUTED))
 		return hb
 	var st := PanelContainer.new()
 	var sb := StyleBoxFlat.new()
@@ -248,7 +248,7 @@ static func _row(key: String, value: String, key_width := 112) -> Control:
 	var hb := HBoxContainer.new()
 	hb.add_theme_constant_override("separation", 8)
 	hb.mouse_filter = Control.MOUSE_FILTER_IGNORE
-	var k := _label(key, 15, MUTED)
+	var k := _label(key, 16, MUTED)
 	k.custom_minimum_size = Vector2(key_width, 0)
 	hb.add_child(k)
 	var v := _label(value, 18, INK)
@@ -266,9 +266,23 @@ static func _warn_label(text: String) -> Label:
 	return l
 
 
+## 한글 음절 사이에 줄바꿈 금지 문자(U+2060)를 넣는다. 줄은 띄어쓰기에서만 바뀐다.
+static func keep_words(s: String) -> String:
+	var out := ""
+	for i in s.length():
+		out += s[i]
+		if i + 1 < s.length() and _hangul(s.unicode_at(i)) and _hangul(s.unicode_at(i + 1)):
+			out += char(0x2060)
+	return out
+
+
+static func _hangul(c: int) -> bool:
+	return c >= 0xAC00 and c <= 0xD7A3
+
+
 static func _label(text: String, font_size: int, color: Color) -> Label:
 	var l := Label.new()
-	l.text = text
+	l.text = keep_words(text)
 	l.add_theme_font_size_override("font_size", font_size)
 	l.add_theme_color_override("font_color", color)
 	l.mouse_filter = Control.MOUSE_FILTER_IGNORE
