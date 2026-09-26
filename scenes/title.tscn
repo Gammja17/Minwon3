@@ -82,12 +82,19 @@ text = "햇살동 주민센터, 신규 9급 주무관의 첫 2주"
 custom_minimum_size = Vector2(0, 40)
 layout_mode = 2
 
+[node name="PracticeBtn" type="Button" parent="VBox"]
+unique_name_in_owner = true
+custom_minimum_size = Vector2(0, 56)
+layout_mode = 2
+theme_override_font_sizes/font_size = 22
+text = "연습 창구부터 (처음이라면)"
+
 [node name="StartBtn" type="Button" parent="VBox"]
 unique_name_in_owner = true
 custom_minimum_size = Vector2(0, 56)
 layout_mode = 2
 theme_override_font_sizes/font_size = 22
-text = "출근하기"
+text = "바로 출근하기"
 
 [node name="QuitBtn" type="Button" parent="VBox"]
 unique_name_in_owner = true

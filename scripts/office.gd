@@ -18,7 +18,6 @@ const PAINT := {
 const MAIN_KINDS := ["form", "move", "death_form", "reissue"]
 const SPOTS := [Vector2(16, 12), Vector2(360, 12), Vector2(704, 12), Vector2(40, 168), Vector2(384, 168), Vector2(690, 150)]
 const PAPER_AREA := Rect2(0, -34, 1040, 380)   # 책상 위(서류 넣는 곳까지 끌어 올릴 수 있게)
-const LEAN := 40.0   # 서류를 들면 책상 쪽으로 고개를 숙이는 만큼
 
 @onready var date_label: Label = %DateLabel
 @onready var clock_label: Label = %ClockLabel
@@ -74,7 +73,7 @@ var noon_pending := false   # 수요일 점심, 노 주무관의 부탁
 var tab := "lookup"
 var messages: Array = []    # [시각, 보낸 사람, 내용, 색]
 var unread := 0
-var lean_tween: Tween
+var tutorial: Tutorial = null   # 연습 창구일 때만
 
 
 func _ready() -> void:
@@ -105,6 +104,10 @@ func _ready() -> void:
 	_build_docs()
 	_refresh_all()
 	_refresh_top()
+	if Game.tutorial:
+		tutorial = Tutorial.new()
+		add_child(tutorial)
+		tutorial.setup(self)
 
 
 ## 벽·책상·창구 틀·모니터 틀은 그림(assets/ui). 화면 속 UI와 말풍선 판만 코드로 칠한다.
@@ -307,7 +310,6 @@ func _new_paper(d: Dictionary, card: Control, can_stamp: bool) -> Paper:
 	p.setup(d, card, can_stamp, PAPER_AREA)
 	p.pressed.connect(_on_paper_pressed)
 	p.released.connect(_on_paper_released)
-	p.lifted.connect(func(pp: Paper): _lean(true, pp))
 	p.erase_requested.connect(_on_paper_erase)
 	return p
 
@@ -445,29 +447,36 @@ func _update_slot() -> void:
 	slot_label.add_theme_color_override("font_color", Color(1, 0.85, 0.3, pulse) if ready else Color(0.7, 0.72, 0.75))
 
 
-func _on_paper_released(_p: Paper) -> void:
-	_lean(false)
-	if slot.get_global_rect().grow(12).has_point(get_global_mouse_position()):
+func _on_paper_released(p: Paper) -> void:
+	var at := get_global_mouse_position()
+	if %Trash.get_global_rect().grow(8).has_point(at):
+		_throw_away(p)
+	elif slot.get_global_rect().grow(12).has_point(at):
 		return_papers()
 
 
-## 서류를 집어 드는 동안 고개를 숙인다: 책상이 올라오고 창구·모니터는 조금 어두워진다(가리지는 않는다).
-func _lean(on: bool, p: Paper = null) -> void:
-	var to := -LEAN if on else 0.0
-	if is_equal_approx(position.y, to):
+## 휴지통: 내가 만든 종이(안내문·반려 사유서)만 버린다. 민원인이 낸 서류는 버릴 수 없다.
+func _throw_away(p: Paper) -> void:
+	var k: String = p.doc.get("kind", "")
+	if k != "slip" and k != "reason":
+		_sys("(민원인이 낸 서류는 버릴 수 없다)")
+		create_tween().tween_property(p, "position:y", p.position.y - 70, 0.2).set_ease(Tween.EASE_OUT)
 		return
-	if lean_tween:
-		lean_tween.kill()
-	lean_tween = create_tween().set_parallel().set_trans(Tween.TRANS_SINE).set_ease(Tween.EASE_OUT)
-	lean_tween.tween_method(_set_lean.bind(p), position.y, to, 0.18)
-	lean_tween.tween_property(%Dim, "color:a", 0.3 if on else 0.0, 0.18)
-
-
-## 화면 전체를 올리되, 손에 든 서류는 마우스 밑에 그대로 둔다
-func _set_lean(y: float, p: Paper) -> void:
-	if p and is_instance_valid(p) and p.dragging():
-		p.position.y += position.y - y
-	position.y = y
+	if p == slip_paper:
+		slip_paper = null
+		slip_dept = ""
+	if p == reason_paper:
+		reason_paper = null
+		reason = ""
+	var center: Vector2 = %Trash.global_position + %Trash.size * Vector2(0.5, 0.3) - papers_layer.global_position
+	p.pivot_offset = p.size * 0.5
+	p.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	var tw := create_tween().set_parallel()
+	tw.tween_property(p, "position", center - p.size * 0.5, 0.2)
+	tw.tween_property(p, "scale", Vector2(0.12, 0.12), 0.2)
+	tw.tween_property(p, "rotation_degrees", 220.0, 0.2)
+	tw.chain().tween_callback(p.queue_free)
+	Sfx.play("paper")
 
 
 func _on_slot_input(e: InputEvent) -> void:
@@ -492,6 +501,8 @@ func return_papers() -> void:
 		_decide("process")
 	elif no:
 		if reason == "":
+			if reason_paper == null:
+				_show_reason_slip()
 			_sys("(반려 사유서에 사유를 체크해야 한다)")
 			return
 		_decide("reject:" + reason)
@@ -688,6 +699,8 @@ func _decide(action: String) -> void:
 		_sys("[전산] 3번 창구에서 처리할 수 없는 업무입니다. 모니터 [부서 안내]를 확인하세요.")
 		Game.pass_time(3)
 		return
+	if tutorial and not tutorial.allow(action):
+		return
 	overlay.visible = false
 	_drop_stamp()
 	var o := Content.resolve(c, action)
@@ -817,14 +830,11 @@ func _escalate(ig: Dictionary) -> void:
 func _leave() -> void:
 	leaving = true
 	_refresh_all()
+	_hand_back()
 	await get_tree().create_timer(1.6).timeout
 	var tw := create_tween().set_parallel()
 	tw.tween_property(portrait_box, "position:x", portrait_x + 260, 0.35).set_trans(Tween.TRANS_QUAD).set_ease(Tween.EASE_IN)
 	tw.tween_property(portrait_box, "modulate:a", 0.0, 0.3)
-	var to := slot.global_position - papers_layer.global_position
-	for p in papers_layer.get_children():
-		tw.tween_property(p, "position", to, 0.35).set_trans(Tween.TRANS_QUAD).set_ease(Tween.EASE_IN)
-		tw.tween_property(p, "modulate:a", 0.0, 0.3)
 	Sfx.play("leave", -6.0)
 	await tw.finished
 	serving = false
@@ -837,6 +847,29 @@ func _leave() -> void:
 	_refresh_all()
 	if Game.check_fail():
 		_go_ending()
+
+
+## 책상 위 서류를 한데 모아 민원인 쪽으로 돌려서, 창구 밑 서류 넣는 곳으로 밀어 넣는다
+func _hand_back() -> void:
+	var kids := papers_layer.get_children()
+	if kids.is_empty():
+		return
+	var to := slot.global_position + slot.size * 0.5 - papers_layer.global_position
+	Sfx.play("paper")
+	for i in kids.size():
+		var p: Control = kids[i]
+		p.mouse_filter = Control.MOUSE_FILTER_IGNORE
+		p.pivot_offset = p.size * 0.5
+		var t := create_tween()
+		t.tween_interval(i * 0.04)
+		# 모으면서 민원인 쪽으로 돌린다
+		t.tween_property(p, "position", to - p.size * 0.5 + Vector2(0, 70), 0.22).set_trans(Tween.TRANS_QUAD).set_ease(Tween.EASE_OUT)
+		t.parallel().tween_property(p, "rotation_degrees", 180.0, 0.22)
+		t.parallel().tween_property(p, "scale", Vector2(0.45, 0.45), 0.22)
+		# 창구 밑으로 쏙
+		t.tween_property(p, "position:y", to.y - p.size.y * 0.5 - 8, 0.14).set_ease(Tween.EASE_IN)
+		t.parallel().tween_property(p, "scale:y", 0.0, 0.14)
+		t.parallel().tween_property(p, "modulate:a", 0.0, 0.14)
 
 
 func _end_day() -> void:
@@ -870,10 +903,10 @@ func _clear_screen(name: String) -> void:
 func _show_lookup() -> void:
 	_clear_screen("lookup")
 	if Game.outage():
-		screen_body.add_child(_text("[전산 장애] 구청 서버 교체 작업 중입니다. 12:00 이후 다시 시도하세요.", 17, Color("b3261e"), true, 500))
+		screen_body.add_child(_text("[전산 장애] 구청 서버 교체 작업 중입니다. 12:00 이후 다시 시도하세요.", 17, Color("b3261e"), true, 470))
 		return
 	if not serving or c.get("lookup", []).is_empty():
-		screen_body.add_child(_text("민원인이 서류를 내면 서류에 적힌 이름을 자동으로 조회합니다.", 16, Color("4a5561"), false, 500))
+		screen_body.add_child(_text("민원인이 서류를 내면 서류에 적힌 이름을 자동으로 조회합니다.", 16, Color("4a5561"), false, 470))
 		return
 	if not c.get("_looked", false):
 		c["_looked"] = true
@@ -881,7 +914,6 @@ func _show_lookup() -> void:
 	var records: Dictionary = c.get("records", {})
 	for n in c.get("lookup", []):
 		var card := DocView.record_card(n, records.get(n), _on_pick, Game.day > Content.WEEK_END)
-		card.custom_minimum_size.x = 500
 		screen_body.add_child(card)
 
 
@@ -912,12 +944,12 @@ func _show_messages() -> void:
 	unread = 0
 	_clear_screen("msg")
 	if messages.is_empty():
-		screen_body.add_child(_text("새 메시지가 없습니다.", 16, Color("4a5561"), false, 500))
+		screen_body.add_child(_text("새 메시지가 없습니다.", 16, Color("4a5561"), false, 470))
 		return
 	for i in range(messages.size() - 1, -1, -1):
 		var m: Array = messages[i]
-		screen_body.add_child(_text("%s  %s" % [m[0], m[1]], 14, m[3], true, 500))
-		screen_body.add_child(_text(m[2], 16, INK, false, 500))
+		screen_body.add_child(_text("%s  %s" % [m[0], m[1]], 14, m[3], true, 470))
+		screen_body.add_child(_text(m[2], 16, INK, false, 470))
 
 
 func _msg(who: String, text: String, color: Color) -> void:
@@ -940,8 +972,7 @@ func _slip(text: String, color: Color) -> void:
 	_msg(who, body, Color("b3261e") if color == SLIP_BAD else Color("2f6a3e"))
 	var sb := StyleBoxFlat.new()
 	sb.bg_color = color
-	sb.set_corner_radius_all(4)
-	sb.set_content_margin_all(10)
+	sb.set_content_margin_all(8)
 	toast.add_theme_stylebox_override("panel", sb)
 	toast_label.text = DocView.keep_words(("%s: %s" % [who, body]) if who != "알림" else body)
 	toast.visible = true

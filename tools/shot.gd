@@ -11,6 +11,33 @@ func _ready() -> void:
 	Game.new_game()
 	await _snap_scene("res://scenes/title.tscn", "1_title")
 	await _snap_scene("res://scenes/briefing.tscn", "2_briefing")
+	# 연습 창구
+	Game.new_game()
+	Game.tutorial = true
+	Game.queue = Tutorial.CASES.duplicate()
+	var tut: Node = await _open("res://scenes/office.tscn")
+	await _wait(0.3)
+	await _save("t1_call")
+	tut._on_next()
+	await _wait(1.0)
+	await _save("t2_compare")
+	tut.tutorial.confirmed = true
+	await _wait(0.2)
+	tut.pick_stamp("ok")
+	tut.stamp_paper(tut._main_paper(), Vector2(170, 90))
+	await _wait(0.3)
+	tut.return_papers()
+	await _wait(0.2)
+	await _save("t3_hand_back")
+	await _wait(2.5)
+	tut._on_next()
+	await _wait(1.0)
+	tut._decide("process")
+	await _wait(0.3)
+	await _save("t4_wrong")
+	tut.queue_free()
+	Game.tutorial = false
+	Game.new_game()
 	Game.start_day()
 	var office: Node = await _open("res://scenes/office.tscn")
 	office._on_next()
@@ -20,17 +47,6 @@ func _ready() -> void:
 	office.stamp_paper(office._main_paper(), Vector2(170, 90))
 	await _wait(0.2)
 	await _save("3b_stamped")
-	var held: Paper = office._main_paper()   # 서류를 들면 고개를 숙인다
-	held.start_drag()
-	var mv := InputEventMouseMotion.new()
-	mv.relative = Vector2(0, -1)
-	held._gui_input(mv)
-	await _wait(0.4)
-	await _save("3c_lean")
-	office._on_paper_released(held)
-	held._drag = false
-	held.scale = Vector2.ONE
-	await _wait(0.3)
 	office.return_papers()
 	await _wait(2.5)
 	office._on_next()   # 무작위

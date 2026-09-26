@@ -19,6 +19,7 @@ var ui_decisions := 0   # 도장·안내문·서류 넣는 곳으로 확정한 �
 
 func _ready() -> void:
 	Engine.time_scale = 20.0
+	await _run_tutorial()
 	# ── 1회차: 규정대로 ──
 	Game.new_game()
 	Game.rng.seed = 7
@@ -73,6 +74,96 @@ func _ready() -> void:
 	ok = ok and need <= panel.size.y + 1
 	print("PLAYTEST " + ("OK" if ok else "FAIL"))
 	get_tree().quit()
+
+
+## 연습 창구를 처음부터 끝까지: 틀린 결정은 막히고, 단계가 끝까지 넘어가야 한다
+func _run_tutorial() -> void:
+	Game.new_game()
+	Game.tutorial = true
+	Game.queue = Tutorial.CASES.duplicate()
+	var o: Node = OFFICE.instantiate()
+	add_child(o)
+	o.set_process(false)
+	await _frames(2)
+	var t: Tutorial = o.tutorial
+	var m: Paper
+	# 1. 정상 서류 (처음엔 일부러 반려해 본다: 막혀야 한다)
+	o._on_next()
+	await _frames(2)
+	o._decide("reject:info")
+	var blocked: bool = o.serving and not o.leaving
+	t.confirmed = true
+	await _frames(2)
+	o.pick_stamp("ok")
+	await _frames(2)
+	o.stamp_paper(o._main_paper(), Vector2(120, 60))
+	await _frames(2)
+	o.return_papers()
+	await _until(func(): return not o.serving)
+	# 2. 틀린 서류
+	o._on_next()
+	await _frames(2)
+	o.inspect_btn.button_pressed = true
+	o._judge("form.subject_birth", "id.birth")
+	await _frames(3)
+	m = o._main_paper()
+	o.pick_stamp("no")
+	o.stamp_paper(m, Vector2(120, 60))
+	await _frames(2)
+	o._on_paper_erase(m)
+	await _frames(2)
+	o.pick_stamp("no")
+	o.stamp_paper(m, Vector2(120, 60))
+	await _frames(2)
+	o.reason = "info"
+	await _frames(2)
+	o.inspect_btn.button_pressed = false
+	o.return_papers()
+	await _until(func(): return not o.serving)
+	# 3. 다른 부서 (잘못 뽑은 안내문은 휴지통에)
+	o._on_next()
+	await _frames(2)
+	o._show_depts()
+	await _frames(2)
+	o.print_slip("clean")
+	o._throw_away(o.slip_paper)
+	var trashed: bool = o.slip_paper == null
+	o.print_slip("welfare")
+	await _frames(2)
+	o.return_papers()
+	await _until(func(): return not o.serving)
+	# 4. 소리 지르는 사람 (비상벨은 막혀야 한다)
+	o._on_next()
+	await _frames(2)
+	o._decide("guard")
+	blocked = blocked and o.serving and not o.leaving
+	for i in 3:
+		o._ignore()
+	await _frames(2)
+	t.confirmed = true
+	await _frames(2)
+	o.pick_stamp("ok")
+	o.stamp_paper(o._main_paper(), Vector2(120, 60))
+	o.return_papers()
+	await _until(func(): return not o.serving)
+	await _frames(2)
+	var at_end: bool = t.steps[t.step].get("finish", false)
+	print("tutorial: step %d/%d finished=%s wrong_blocked=%s trash=%s" % [t.step + 1, t.steps.size(), at_end, blocked, trashed])
+	ok = ok and at_end and blocked and trashed
+	o.queue_free()
+	Game.tutorial = false
+
+
+func _frames(n: int) -> void:
+	for i in n:
+		await get_tree().process_frame
+
+
+func _until(cond: Callable) -> void:
+	for i in 600:
+		if cond.call():
+			return
+		await get_tree().process_frame
 
 
 func _expect(tag: String, want: Array) -> void:

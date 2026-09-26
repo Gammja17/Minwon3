@@ -6,14 +6,12 @@ extends PanelContainer
 signal pressed(paper: Paper, at: Vector2)
 signal released(paper: Paper)
 signal erase_requested(paper: Paper)
-signal lifted(paper: Paper)   # 끌기 시작: 실제로 움직였을 때만
 
 var doc: Dictionary = {}
 var stampable := false
 var stamps: Array = []   # "ok" / "no"
 var bounds := Rect2()
 var _drag := false
-var _lifted := false
 var _marks: Control
 
 
@@ -40,15 +38,11 @@ func _gui_input(e: InputEvent) -> void:
 				pressed.emit(self, get_local_mouse_position())
 			elif _drag:
 				_drag = false
-				_lifted = false
 				scale = Vector2.ONE
 				released.emit(self)
 		elif e.button_index == MOUSE_BUTTON_RIGHT and e.pressed and not stamps.is_empty():
 			erase_requested.emit(self)
 	elif e is InputEventMouseMotion and _drag:
-		if not _lifted:
-			_lifted = true
-			lifted.emit(self)
 		position = (position + e.relative).clamp(bounds.position, bounds.end - size)
 
 
@@ -57,10 +51,6 @@ func start_drag() -> void:
 	move_to_front()
 	pivot_offset = size * 0.5
 	scale = Vector2(1.03, 1.03)
-
-
-func dragging() -> bool:
-	return _drag
 
 
 func add_mark(kind: String, text: String, at: Vector2) -> void:

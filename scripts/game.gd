@@ -38,11 +38,13 @@ var noh_helped := false
 var notices: Array = []   # 창구 화면에 띄울 알림
 var revisit_chance := 0.6
 var later: Array = []      # 전산 장애로 돌려보낸 사람들 (오후에 다시 온다)
+var tutorial := false      # 연습 창구 중
 var dalsu_used := false    # 박달수 씨 대기실 도우미 (하루 한 번)
 
 
 func new_game() -> void:
 	rng.randomize()
+	tutorial = false
 	day = 1
 	rep = 50
 	pen = 0

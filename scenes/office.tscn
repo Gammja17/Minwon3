@@ -16,6 +16,7 @@
 [ext_resource type="Texture2D" path="res://assets/ui/bell.png" id="tex_bell"]
 [ext_resource type="Texture2D" path="res://assets/ui/binder.png" id="tex_binder"]
 [ext_resource type="Texture2D" path="res://assets/ui/magnifier.png" id="tex_magnifier"]
+[ext_resource type="Texture2D" path="res://assets/ui/trash.png" id="tex_trash"]
 
 [node name="Office" type="Control"]
 layout_mode = 3
@@ -89,20 +90,20 @@ text = "번호 호출"
 [node name="DateLabel" type="Label" parent="Wall"]
 unique_name_in_owner = true
 layout_mode = 0
-offset_left = 420.0
+offset_left = 384.0
 offset_top = 14.0
-offset_right = 640.0
+offset_right = 700.0
 offset_bottom = 44.0
 theme_override_fonts/font = ExtResource("font_pix")
 theme_override_font_sizes/font_size = 24
-text = "10월 12일 (월)"
+text = "2026년 10월 12일 (월)"
 
 [node name="ClockLabel" type="Label" parent="Wall"]
 unique_name_in_owner = true
 layout_mode = 0
-offset_left = 652.0
+offset_left = 710.0
 offset_top = 14.0
-offset_right = 770.0
+offset_right = 800.0
 offset_bottom = 44.0
 theme_override_colors/font_color = Color(1, 0.86, 0.55, 1)
 theme_override_fonts/font = ExtResource("font_pix")
@@ -113,7 +114,7 @@ text = "09:00"
 unique_name_in_owner = true
 visible = false
 layout_mode = 0
-offset_left = 790.0
+offset_left = 810.0
 offset_top = 17.0
 offset_right = 1270.0
 offset_bottom = 43.0
@@ -276,6 +277,18 @@ layout_mode = 2
 theme_override_font_sizes/font_size = 15
 text = "메신저"
 
+[node name="Toast" type="PanelContainer" parent="Monitor/Screen/VBox"]
+unique_name_in_owner = true
+visible = false
+layout_mode = 2
+
+[node name="ToastLabel" type="Label" parent="Monitor/Screen/VBox/Toast"]
+unique_name_in_owner = true
+layout_mode = 2
+theme_override_fonts/font = ExtResource("font_bold")
+theme_override_font_sizes/font_size = 16
+autowrap_mode = 3
+
 [node name="ScreenScroll" type="ScrollContainer" parent="Monitor/Screen/VBox"]
 unique_name_in_owner = true
 layout_mode = 2
@@ -331,31 +344,6 @@ size_flags_vertical = 4
 value = 20.0
 show_percentage = false
 
-[node name="Toast" type="PanelContainer" parent="Monitor"]
-unique_name_in_owner = true
-visible = false
-layout_mode = 0
-offset_left = 38.0
-offset_top = 57.0
-offset_right = 530.0
-offset_bottom = 103.0
-
-[node name="ToastLabel" type="Label" parent="Monitor/Toast"]
-unique_name_in_owner = true
-custom_minimum_size = Vector2(470, 0)
-layout_mode = 2
-theme_override_fonts/font = ExtResource("font_bold")
-theme_override_font_sizes/font_size = 16
-autowrap_mode = 3
-
-[node name="Dim" type="ColorRect" parent="."]
-unique_name_in_owner = true
-layout_mode = 0
-offset_right = 1280.0
-offset_bottom = 374.0
-mouse_filter = 2
-color = Color(0.03, 0.03, 0.05, 0)
-
 [node name="Slot" type="Panel" parent="."]
 unique_name_in_owner = true
 layout_mode = 0
@@ -385,7 +373,7 @@ unique_name_in_owner = true
 layout_mode = 0
 offset_top = 374.0
 offset_right = 1280.0
-offset_bottom = 760.0
+offset_bottom = 720.0
 
 [node name="DeskArt" type="TextureRect" parent="Desk"]
 layout_mode = 1
@@ -438,6 +426,16 @@ theme_override_font_sizes/font_size = 20
 text = "벽의 [번호 호출]을 눌러 민원인을 부르세요."
 horizontal_alignment = 1
 vertical_alignment = 1
+
+[node name="Trash" type="TextureRect" parent="Desk"]
+unique_name_in_owner = true
+layout_mode = 0
+offset_left = 966.0
+offset_top = 256.0
+offset_right = 1031.0
+offset_bottom = 346.0
+mouse_filter = 2
+texture = ExtResource("tex_trash")
 
 [node name="Papers" type="Control" parent="Desk"]
 unique_name_in_owner = true

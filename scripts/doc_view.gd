@@ -51,17 +51,7 @@ static func record_card(name: String, rec: Variant, pick := Callable(), show_pho
 	var others: Array = []
 	for m in members.slice(1):
 		others.append("%s(%s)" % [m[0], m[1]])
-	var rows: Array = []
-	if show_photo and rec.has("look"):
-		var ph := photo(rec["look"], Vector2(72, 88))
-		var line := HBoxContainer.new()
-		line.mouse_filter = Control.MOUSE_FILTER_IGNORE
-		var k := _label("전산 사진", 16, MUTED)
-		k.custom_minimum_size = Vector2(112, 0)
-		line.add_child(k)
-		line.add_child(_wrap(ph, pre + "photo", pick))
-		rows.append(line)
-	rows += [
+	var rows: Array = [
 		_wrap(_row("생년월일", rec["birth"]), pre + "birth", pick),
 		_wrap(_row("주소", rec["addr"]), pre + "addr", pick),
 		_wrap(_row("세대주", members[0][0]), pre + "head", pick),
@@ -74,6 +64,26 @@ static func record_card(name: String, rec: Variant, pick := Callable(), show_pho
 		rows.append(_wrap(_warn_label("[주의] " + rec["lost"]), pre + "lost", pick))
 	if String(rec.get("restrict", "")) != "":
 		rows.append(_wrap(_warn_label("[주의] " + rec["restrict"]), pre + "restrict", pick))
+	if show_photo and rec.has("look"):
+		# 사진은 오른쪽에 둔다 (모니터가 작아서 사진을 한 줄로 두면 기록이 밀려 잘린다)
+		var side := HBoxContainer.new()
+		side.mouse_filter = Control.MOUSE_FILTER_IGNORE
+		side.add_theme_constant_override("separation", 10)
+		var col := VBoxContainer.new()
+		col.mouse_filter = Control.MOUSE_FILTER_IGNORE
+		col.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+		col.add_theme_constant_override("separation", 3)
+		for r in rows:
+			col.add_child(r)
+		side.add_child(col)
+		var pcol := VBoxContainer.new()
+		pcol.mouse_filter = Control.MOUSE_FILTER_IGNORE
+		pcol.add_child(_wrap(photo(rec["look"], Vector2(72, 88)), pre + "photo", pick))
+		var cap := _label("전산 사진", 14, MUTED)
+		cap.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
+		pcol.add_child(cap)
+		side.add_child(pcol)
+		rows = [side]
 	return _paper("전산 조회: " + name, rows, null, bg)
 
 
