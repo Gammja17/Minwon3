@@ -1,0 +1,1359 @@
+class_name Content
+extends RefCounted
+## 게임 데이터: 날짜, 규정, 부서, 팀장 메모, 이야기 민원, 무작위 민원 생성기, 판정.
+
+const LAST_DAY := 10
+const WEEK_END := 5        # 1주차 금요일: 중간 감사
+const PAYDAY := 7          # 10월 20일 첫 월급
+const SALARY := 1280000    # 신규 첫 달 일할 계산
+const RENT := 450000       # 25일 월세
+const TRIP_COST := 50000   # 주말에 어머니 댁 가는 기차표
+const OUTAGE_DAY := 8
+const OUTAGE_END := 720.0  # 수요일 12:00 전산 복구
+const DATES := ["10월 12일 (월)", "10월 13일 (화)", "10월 14일 (수)", "10월 15일 (목)", "10월 16일 (금)",
+	"10월 19일 (월)", "10월 20일 (화)", "10월 21일 (수)", "10월 22일 (목)", "10월 23일 (금)"]
+const TODAY := [20261012, 20261013, 20261014, 20261015, 20261016, 20261019, 20261020, 20261021, 20261022, 20261023]
+const OUR_DONG := "햇살동"
+const OTHER_DONGS := ["달빛동", "은행동", "별빛동"]
+
+const DEPTS := {
+	"welfare": {"name": "복지팀", "where": "주민센터 2층", "jobs": "긴급 생계비, 기초생활수급, 기초연금, 장애인 등록"},
+	"passport": {"name": "여권민원과", "where": "구청 1층", "jobs": "여권 발급과 재발급"},
+	"traffic": {"name": "교통행정과", "where": "구청 3층", "jobs": "불법 주정차 신고, 견인, 주정차 과태료 이의"},
+	"clean": {"name": "청소행정과", "where": "구청 4층", "jobs": "쓰레기 무단투기, 쓰레기·음식물 수거"},
+	"police": {"name": "경찰서", "where": "외부 기관", "jobs": "잃어버린 물건, 사기·폭행·협박 신고"},
+}
+const DEPT_ORDER := ["welfare", "passport", "traffic", "clean", "police"]
+
+const RULES := [
+	{"day": 1, "title": "본인 확인", "text": "신분증(주민등록증이나 운전면허증)을 반드시 받는다. 신분증 사진이 창구 앞에 선 사람과 같은 얼굴이어야 한다."},
+	{"day": 1, "title": "기재 사항 대조", "text": "신청서에 적힌 대상자의 이름과 생년월일이 전산 기록과 같아야 한다. 본인이 신청하면 신분증과도 같아야 한다. 전산에서 이름이 조회되지 않으면 반려한다."},
+	{"day": 1, "title": "3번 창구 업무", "text": "주민등록 등본·초본 발급, 인감증명서 발급, 전입신고. 그 밖의 일은 부서 안내표를 보고 담당 부서로 이관한다."},
+	{"day": 1, "title": "전입신고", "text": "새 주소가 햇살동일 때만 받는다. 다른 동으로 이사했다면 그 동 주민센터에서 해야 하므로 반려한다."},
+	{"day": 1, "title": "청탁 금지", "text": "민원인이 건네는 선물이나 음식은 받지 않는다."},
+	{"day": 1, "title": "소란 대응", "text": "욕설과 고함에는 대꾸하지 않는다(먹금). 대부분은 제풀에 가라앉는다. 물건을 부수거나 손이 올라가면 바로 청원경찰을 부른다. 멀쩡한 민원인을 내쫓으면 민원이 들어온다."},
+	{"day": 2, "title": "대리 신청", "text": "본인이 아닌 사람이 서류를 떼러 오면 위임장을 확인한다. 위임장에는 위임하는 사람의 도장이 찍혀 있어야 한다. 단, 전산에 같은 세대원으로 올라 있는 가족은 위임장 없이 등본·초본을 뗄 수 있다."},
+	{"day": 2, "title": "인감증명 대리 발급", "text": "인감증명서는 본인이 오거나, 위임하는 사람의 '인감도장'이 찍힌 위임장을 가져와야 뗄 수 있다. 일반 도장이 찍혔거나 위임장이 없으면 반려한다. 세대원이어도 예외는 없다."},
+	{"day": 3, "title": "운전면허증 유효기간", "text": "유효기간이 지난 운전면허증은 신분증으로 인정하지 않는다."},
+	{"day": 3, "title": "인감 등록 여부", "text": "전산에 인감이 등록되지 않은 사람의 인감증명서는 뗄 수 없다. 본인이 먼저 인감 신고를 해야 하므로 반려한다."},
+	{"day": 4, "title": "분실 인감", "text": "전산에 인감 분실 신고가 된 사람의 위임장은 무효다. 그 위임장을 들고 온 사람은 돌려보내지 말고 청원경찰을 불러 붙잡아 둔다."},
+	{"day": 4, "title": "교부 제한", "text": "전산에 등본·초본 교부 제한이 표시된 사람(가정폭력 피해자 등)의 서류는 본인이 아니면 누구에게도 떼 주지 않는다. 가족이라며 위임장을 가져와도 마찬가지다."},
+	{"day": 6, "title": "전산 사진", "text": "전산 조회에 주민등록 사진이 나온다. 신분증 사진과 창구 앞 얼굴은 같은데 전산 사진만 다르면, 남의 이름으로 만든 위조 신분증이다. 돌려보내지 말고 청원경찰을 부른다."},
+	{"day": 6, "title": "신분증 재발급", "text": "신분증을 잃어버렸거나 망가진 사람의 재발급 신청을 받는다. 확인할 신분증이 없으니 전산 사진과 얼굴을 비교한다. 얼굴이 다르면 남의 명의로 신분증을 받으려는 것이니 청원경찰을 부른다. 신청서의 이름·생년월일이 전산과 다르면 반려한다."},
+	{"day": 7, "title": "위임자 전화 확인", "text": "인감증명서를 대리로 떼 줄 때는 전산에 있는 연락처로 위임자에게 전화해 확인한다. 위임한 적 없다고 하면 위조 위임장이니 가져온 사람을 청원경찰을 불러 붙잡아 둔다. 확인 전화 없이 떼 주면 안 된다."},
+	{"day": 8, "title": "전산 장애", "text": "전산 장애 중에는 본인이 직접 온 신청만 서류를 보고 받는다. 대리 신청, 인감증명서, 신분증 재발급은 전산 확인이 꼭 필요하므로 '전산 장애' 사유로 반려하고 오후에 다시 오시라고 안내한다."},
+	{"day": 4, "title": "사망신고", "text": "사망신고도 3번 창구에서 받는다. 사망신고서와 사망진단서가 모두 있어야 한다. 신고 기한(한 달)이 지났어도 접수는 하고, 과태료는 따로 나간다."},
+]
+
+static func _rules_sorted() -> Array:
+	var r := RULES.duplicate()
+	r.sort_custom(func(a, b): return a["day"] < b["day"])
+	return r
+
+
+const MEMOS := {
+	1: "햇살동 주민센터에 온 걸 환영해요. 오늘부터 3번 창구는 주무관님 자리예요.\n\n일 자체는 어렵지 않아요. [다음 분]을 눌러 번호표를 부르고, 민원인이 내민 서류를 규정집과 전산 기록에 맞춰 보면 돼요. 맞으면 [처리], 틀린 데가 있으면 [반려]. 우리 창구 일이 아니면 [이관]으로 담당 부서를 알려 주세요. 엉뚱한 부서로 보내면 그분이 도로 돌아오는데, 그땐 훨씬 화가 나 있을 거예요.\n\n가끔 소리부터 지르는 분들이 있어요. 대꾸하지 말고 [먹금]하세요. 말려들면 길어지기만 하고, 대부분은 한참 떠들다 제풀에 지쳐서 용건을 말해요. 그래도 물건을 부수거나 손이 올라가면 참지 말고 [청원경찰]을 부르고요.\n\n제 자리가 바로 뒤라서, 뭔가 잘못되면 메모를 넘길게요. 첫날이니까 너무 긴장하지 말아요.",
+	2: "어제 수고 많았어요.\n\n1번 창구 박 주무관이 오늘부터 교육을 가서, 가족 서류를 대신 떼러 오는 '대리 신청'도 3번 창구에서 받아야 해요. 본인이 아닌 사람이 오면 위임장을 확인하세요. 다만 같은 집에 사는 가족, 그러니까 전산에 세대원으로 올라 있는 사람이면 위임장 없이도 등본·초본을 떼 줄 수 있어요. 전산 조회에서 세대원 칸을 꼭 보세요.\n\n인감증명서는 예외가 없어요. 가족이라도 위임하는 사람의 인감도장이 찍힌 위임장이 없으면 안 돼요.",
+	3: "오늘은 두 가지만 기억해 주세요.\n\n첫째, 유효기간이 지난 운전면허증을 신분증이라고 내미는 분들이 있어요. 면허증이면 유효기간을 꼭 보세요.\n둘째, 인감증명서는 전산에 인감이 등록된 사람만 뗄 수 있어요. 등록이 안 돼 있으면 본인이 직접 와서 인감 신고부터 해야 해요.\n\n그리고 어제 구청 회의에서 '민원 떠넘기기' 얘기가 나왔어요. 구청과 동 주민센터가 서로 미루는 바람에 민원인이 몇 번씩 오간 일이 있었대요. 이관하기 전에 부서 안내표를 한 번 더 봐 주세요.",
+	4: "옆 달빛동 주민센터에서 사고가 났어요. 누가 할아버지 인감도장을 훔쳐서 위임장을 꾸며 왔는데, 창구에서 그걸 그대로 받아 인감증명서를 떼 줬대요. 그 서류로 할아버지 집을 담보로 대출을 받아 갔고, 담당 주무관은 징계위원회에 올라갔어요.\n\n그래서 오늘부터 전산에 인감 분실 신고가 된 사람의 위임장은 무효예요. 그런 위임장을 들고 온 사람은 돌려보내지 말고 청원경찰을 불러 붙잡아 두세요. 경찰에 넘겨야 해요.\n\n그리고 가정폭력 피해자처럼 등본 교부 제한을 신청한 분들이 있어요. 전산에 [주의]로 뜨니까, 그런 분 서류는 본인 말고는 절대 떼 주지 마세요. 가족이라고 해도요.\n\n오늘부터 사망신고도 3번 창구에서 받아요. 사망신고서와 사망진단서를 둘 다 받아야 하고요. 신고 기한인 한 달이 지났어도 접수는 해요. 과태료는 따로 나가요.",
+	5: "오늘은 구청 감사팀이 나오는 날이에요. 창구에도 들를 수 있어요. 평소처럼 규정대로만 하면 돼요.\n\n한 주 동안 수고 많았어요. 오늘만 잘 버텨요.",
+	6: "주말 잘 쉬었어요? 이번 주도 잘 부탁해요.\n\n구청이 전산을 바꿔서, 이번 주부터 전산 조회에 주민등록 사진이 같이 나와요. 신분증 사진이랑 얼굴은 같은데 전산 사진만 다르면, 남의 이름으로 만든 위조 신분증이에요. 그런 사람은 돌려보내지 말고 청원경찰을 불러 주세요.\n\n그리고 오늘부터 주민등록증 재발급도 3번 창구에서 받아요. 신분증을 잃어버리고 오신 분들이라 확인할 신분증이 없어요. 전산 사진과 얼굴을 꼼꼼히 비교하세요.",
+	7: "오늘부터 인감증명서를 대리로 떼 줄 때는 위임하는 분께 전화로 확인해야 해요. 전산에 연락처가 있어요. 위임한 적 없다고 하면 위임장이 위조된 거니까, 가져온 사람을 청원경찰 불러서 붙잡아 두세요. 확인 전화 없이 떼 주면 안 돼요.\n\n그리고 오늘 월급날이죠? 첫 월급 축하해요.",
+	8: "오늘 오전 9시부터 12시까지 전산 장애가 있어요. 구청 서버 교체 작업이래요. 그동안은 조회가 안 되니까, 본인이 직접 온 신청만 서류를 보고 받아 주세요. 대리 신청, 인감증명서, 신분증 재발급은 전산 확인이 꼭 필요하니까 '전산 장애' 사유로 반려하고 오후에 다시 오시라고 안내해 주세요.\n\n저는 점심때 구청 회의가 있어서 자리를 좀 비워요.",
+	9: "오늘은 새 규정이 없어요. 대신 지난주부터 바뀐 게 많았으니 헷갈리면 규정집을 다시 봐요.\n\n내일은 인사 평가 자료를 올리는 날이에요. 이번 2주 기록이 그대로 들어가요.",
+	10: "2주 근무의 마지막 날이에요. 오후에 김태식 구의원이 주민센터를 둘러본대요. 누가 오든 규정은 똑같아요.\n\n저녁에 인사 평가 결과가 나와요. 내일이 승진 시험이죠? 수고 많았어요.",
+}
+const DALSU_HELPER_MEMO := "\n\n(대기석 쪽을 가리키며) 아, 저기 박달수 씨 보이죠? 이번 주부터 어르신 일자리로 대기실 안내를 맡으셨어요. 소리 지르는 분이 오면 먼저 가서 말을 걸어 주신대요. 3번 창구 덕분이라고 하시던데요."
+const RESTRICT_NOTE := "등본·초본 교부 제한 (가정폭력 피해, 2026.09.02 신청)"
+const PAYDAY_NOTE := "월급날: 첫 월급 128만 원이 통장에 들어왔다."
+const OUTAGE_OVER := "12:00, 전산이 복구됐다. 오전에 돌려보낸 분들이 오후에 다시 올 거다."
+
+const STALKER_NEWS := "먼저 급한 얘기부터 할게요. 어제 3번 창구에서 윤서영 씨 등본이 나갔죠. 윤서영 씨는 전 남편의 폭력을 피해 이사 온 분이었고, 등본 교부 제한 신청이 돼 있었어요. 어젯밤 전 남편이 새 집 앞까지 찾아왔대요. 이웃이 신고해서 경찰이 바로 오긴 했어요. 등본을 떼 간 사람은 심부름센터 직원이었고요. 오늘 경찰이 발급 경위를 물으러 온대요.\n\n"
+const SCAM_NEWS := "먼저 안 좋은 소식이 있어요. 어제 3번 창구에서 최만수 할아버지 인감증명서가 나갔죠. 그 서류로 조카라는 사람이 할아버지 집을 담보로 대출을 받아 갔어요. 할아버지 인감은 그 전날 이미 분실 신고가 돼 있었고요. 오늘 감사팀이 이 건도 같이 볼 거예요.\n\n"
+
+const RUMORS := {
+	1: "복지팀 동기 정다운이 맥주잔을 내려놓으며 말했다.\n\"오늘 박달수 할아버지 왔었지? 우리 동네에선 유명해. 원래는 부인이랑 늘 둘이 같이 오셨대. 서류는 부인이 다 챙기고, 할아버지는 옆에서 기다리고. 그런데 여름부터는 혼자 오신대. 부인 안부를 물으면 딴 얘기만 하시고.\"",
+	2: "정다운이 한숨을 쉬었다.\n\"요즘 2층에 뺑뺑이 돌다 오는 분이 많아. 긴급 생계비는 동 주민센터 복지팀에서 받는 건데, 구청에선 동 주민센터로 가라 하고, 1층 창구에선 또 구청으로 가라 하고. 그러다 지쳐서 포기하는 분도 있어. 생계비 얘기가 나오면 무조건 2층으로 올려 보내 줘.\"",
+	3: "정다운이 목소리를 낮췄다.\n\"금요일에 구청 감사팀 온다는 거 들었지? 감사팀은 민원인인 척하고 창구에 온대. 급하다고, 한 번만 봐 달라고 사정하면서 규정을 어기게 만드는 게 수법이래.\"",
+	4: "정다운이 말했다.\n\"감사팀은 이번 주 전산 기록도 다 뒤진대. 누구한테 뭘 받았는지까지. 작년에 음료수 한 상자 받았다가 지적받은 사람도 있었어.\"",
+}
+
+static func rumor(day: int, flags: Dictionary) -> String:
+	match day:
+		6:
+			return "정다운이 달력을 보며 말했다.\n\"내일 월급날인 거 알지? 신규는 첫 달이 일할 계산이라 생각보다 적을 거야. 그리고 내일부터 인감 대리 발급은 위임자한테 확인 전화를 해야 한대. 전화하려고 하면 괜히 말리는 사람, 그게 제일 수상한 거래.\""
+		7:
+			return "정다운이 목소리를 낮췄다.\n\"내일 오전엔 구청 서버 교체 때문에 전산이 먹통이래. 그리고... 2번 노 주무관 있잖아. 뭐 부탁하면 조심해. 작년에 그 양반 부탁 들어줬다가 감사에서 혼난 사람이 있었어.\""
+		8:
+			if flags.get("envelope_refused", false) or flags.get("envelope_guarded", false):
+				return "정다운이 말했다.\n\"윤서영 씨라고 알아? 2층에 가끔 상담받으러 오는 분인데, 요즘 좀 안정됐대. 그런데 누가 자기 서류를 떼러 왔었다는 얘기를 듣고 많이 놀랐나 봐. 혹시 창구에 오면 잘 봐 드려.\""
+			return "정다운이 말했다.\n\"내일은 좀 조용했으면 좋겠다. 이번 주는 너무 정신없었어.\""
+		9:
+			return "정다운이 한숨을 쉬었다.\n\"내일 김태식 구의원이 주민센터를 둘러본대. 장만식 씨랑 형님 동생 한다는 그 사람. 올 때마다 뭘 하나씩 부탁하고 간다더라.\""
+	return RUMORS.get(day, "정다운과 수다를 떨다 보니 기분이 좀 풀렸다.")
+
+
+const SEQUENCES := {
+	1: ["d1_first", "R", "d1_dalsu", "R", "d1_passport", "d1_photo", "R"],
+	2: ["R", "d2_grandma", "N", "d2_vip", "R", "d2_drunk", "R"],
+	3: ["R", "d3_dalsu", "R", "d3_mee", "R", "d3_license", "R"],
+	4: ["R", "d4_death", "d4_mee", "R", "d4_scam", "R", "d4_envelope", "R"],
+	5: ["R", "d5_auditor", "N", "d5_dalsu", "R"],
+	6: ["R", "w2_jiwoo", "R", "w2_reissue", "R", "w2_mansu", "R"],
+	7: ["R", "w2_taemin", "R", "w2_mee_again", "R", "R"],
+	8: ["R", "R", "R", "w2_mee", "R", "w2_noh_favor", "R"],
+	9: ["R", "w2_seoyoung", "R", "w2_dalsu", "R", "w2_donghun", "R"],
+	10: ["R", "R", "w2_councilor", "R", "R"],
+}
+
+const REASONS := {
+	"photo": "신분증 사진이 본인과 다름",
+	"info": "이름·생년월일 불일치",
+	"expired": "유효기간 지난 신분증",
+	"proxy": "위임장 없음·도장 문제",
+	"seal": "인감 미등록",
+	"area": "관할 구역 아님",
+	"restrict": "교부 제한 대상",
+	"system": "전산 장애 (오후에 다시)",
+}
+const REASON_ORDER := ["photo", "info", "expired", "proxy", "seal", "area", "restrict", "system"]
+const FIXABLE := ["info", "expired", "proxy", "seal"]
+const FIX_LINES := {"info": "신청서를 다시 써 왔어요.", "expired": "이번엔 제대로 된 신분증 가져왔어요.",
+	"proxy": "위임장도 제대로 받아 왔어요.", "seal": "인감 등록부터 하고 왔어요."}
+const SOS := {"result": "neutral", "sos": true, "stress": -5, "mood": "normal",
+	"say": "(2층에서 정다운이 내려와 민원인 팔을 가만히 잡는다) 선생님, 저랑 위에서 따뜻한 차 한잔하시면서 천천히 얘기해요.",
+	"note": "정다운이 민원인을 2층으로 모시고 갔다."}
+const NOH_BACK := {"result": "neutral", "noh": -10, "mood": "angry",
+	"say": "(투덜대며 2번 창구로 간다) 여기 갔다 저기 갔다, 진짜..."}
+const REASON_OF := {"name": "info", "birth": "info", "photo": "photo", "expired": "expired", "outside": "area",
+	"no_proxy": "proxy", "no_seal": "proxy", "general_seal": "proxy", "unreg": "seal", "lost": "proxy",
+	"impostor": "photo", "db_photo": "photo", "forged": "proxy"}
+const FLAW_REPLIES := {
+	"name": ["어? 제가 이름을 잘못 썼나요? 정신이 없어서...", "아, 급하게 쓰다 보니까..."],
+	"birth": ["생일을 잘못 적었나 보네요. 다시 쓸게요.", "어머, 숫자를 헷갈렸나 봐요."],
+	"photo": ["......그, 그거 옛날 사진이라니까요.", "(시선을 피한다) 사진이 좀 안 닮게 나왔죠...?"],
+	"expired": ["아... 기간 지난 줄 몰랐네요. 적성검사를 깜빡했어요."],
+	"outside": ["아, 여기서 안 돼요? 이사 간 동네로 가야 해요?"],
+	"no_proxy": ["위임장이요? 가족인데 꼭 있어야 돼요?"],
+	"no_seal": ["도장이요? 서명만 하면 되는 줄 알았는데."],
+	"general_seal": ["인감도장이 따로 있어요? 집에 있는 도장 찍어 왔는데..."],
+	"unreg": ["인감 등록이요? 그런 걸 따로 해야 되는 거예요?"],
+	"lost": ["(얼굴이 굳는다) ......네? 그럴 리가 없는데요."],
+	"impostor": ["전산이 잘못된 거 아니에요? 신분증 보세요, 저잖아요.", "(눈을 피한다) ......신분증이 있는데 뭐가 문제예요?"],
+	"db_photo": ["(말을 더듬는다) 그, 그게 오래전 사진이라...", "사진이 좀 다르게 나왔나 봐요. 저 맞아요, 진짜로."],
+	"forged": ["(전화 내용을 듣고 얼굴이 굳는다) 아, 아니... 깜빡하셨나 봐요. 연세가 있으셔서."],
+}
+const PHONE := {
+	"ok": "네, 제가 맡긴 거 맞아요. 잘 좀 부탁드려요.",
+	"deny": "네? 인감증명이요? 난 그런 거 맡긴 적 없는데요?",
+	"lost": "도장이요? 그거 잃어버려서 신고까지 했는데요. 누가 그걸 들고 왔어요?",
+}
+const NAGS := ["저기요, 아직 멀었어요?", "뒤에 사람들도 기다리는데요...", "(손가락으로 창구를 톡톡 두드린다)"]
+const NAGS_2 := ["아니, 서류 한 장 보는 데 왜 이렇게 오래 걸려요?", "(한숨을 푹 쉰다) 점심시간 다 가겠네."]
+
+const THANKS := ["감사합니다.", "수고하세요~", "네, 고맙습니다.", "빨리 해 주셨네요. 감사합니다."]
+const REJECT_OK := ["아... 네. 다시 챙겨서 올게요.", "그게 안 돼요? ......알겠어요.", "헛걸음했네. 알겠습니다."]
+const REJECT_BAD := ["서류 다 가져왔는데 뭐가 문제라는 거예요?", "아니, 전에는 이걸로 됐는데요? 민원 넣을 거예요."]
+const DEFAULT_IGNORE := {
+	"lines": ["저기요...?", "제 말 들리세요? 사람을 앞에 두고 뭐 하시는 거예요?"],
+	"stress": 2, "result": "leave",
+}
+
+# 이야기 인물의 얼굴
+const LOOKS := {
+	"jiwoo": {"skin": 0, "hair": 0, "style": 2, "glasses": false, "age": 0, "shape": 1, "shirt": 4, "img": "jiwoo"},
+	"dalsu": {"skin": 1, "hair": 3, "style": 3, "glasses": true, "age": 2, "shape": 2, "shirt": 3, "img": "dalsu"},
+	"serin": {"skin": 0, "hair": 2, "style": 1, "glasses": false, "age": 0, "shape": 0, "shirt": 5, "img": "serin"},
+	"junho": {"skin": 2, "hair": 0, "style": 0, "glasses": false, "age": 0, "shape": 1, "shirt": 1, "img": "junho"},
+	"junho_id": {"skin": 0, "hair": 1, "style": 1, "glasses": true, "age": 0, "shape": 2, "shirt": 3, "img": "junho_id"},
+	"soonja": {"skin": 1, "hair": 4, "style": 4, "glasses": false, "age": 2, "shape": 0, "shirt": 2, "img": "soonja"},
+	"mansik": {"skin": 2, "hair": 0, "style": 1, "glasses": false, "age": 1, "shape": 2, "shirt": 7, "img": "mansik"},
+	"drunk": {"skin": 2, "hair": 1, "style": 0, "glasses": false, "age": 1, "shape": 2, "shirt": 3, "flush": true, "img": "drunk"},
+	"mee": {"skin": 0, "hair": 1, "style": 2, "glasses": false, "age": 1, "shape": 1, "shirt": 6, "img": "mee"},
+	"sungho": {"skin": 3, "hair": 0, "style": 0, "glasses": false, "age": 1, "shape": 0, "shirt": 0, "img": "sungho"},
+	"kyunga": {"skin": 1, "hair": 1, "style": 4, "glasses": true, "age": 1, "shape": 0, "shirt": 7, "img": "kyunga"},
+	"taemin": {"skin": 0, "hair": 2, "style": 1, "glasses": false, "age": 0, "shape": 1, "shirt": 4, "img": "taemin"},
+	"donghun": {"skin": 1, "hair": 0, "style": 1, "glasses": true, "age": 1, "shape": 1, "shirt": 7, "img": "donghun"},
+	"mansu": {"skin": 1, "hair": 4, "style": 3, "glasses": false, "age": 2, "shape": 0, "shirt": 0, "img": "mansu"},
+	"okja": {"skin": 2, "hair": 4, "style": 4, "glasses": true, "age": 2, "shape": 1, "shirt": 5, "img": "okja"},
+	"noh": {"skin": 1, "hair": 1, "style": 3, "glasses": true, "age": 1, "shape": 2, "shirt": 3, "img": "noh"},
+	"seoyoung": {"skin": 0, "hair": 0, "style": 2, "glasses": false, "age": 0, "shape": 1, "shirt": 6, "img": "seoyoung"},
+	"taesik": {"skin": 2, "hair": 3, "style": 3, "glasses": true, "age": 2, "shape": 2, "shirt": 7, "img": "taesik"},
+	"dohyun": {"skin": 3, "hair": 0, "style": 0, "glasses": true, "age": 0, "shape": 0, "shirt": 1, "img": "dohyun"},
+	"eunbi": {"skin": 0, "hair": 2, "style": 2, "glasses": false, "age": 0, "shape": 0, "shirt": 5, "img": "eunbi"},
+	"seungmin": {"skin": 1, "hair": 0, "style": 0, "glasses": false, "age": 0, "shape": 1, "shirt": 1, "img": "seungmin"},
+	"hyun": {"skin": 1, "hair": 0, "style": 0, "glasses": true, "age": 1, "shape": 1, "shirt": 7, "img": "hyun"},
+}
+
+# 무작위 민원인 얼굴 모음 (나이대별). 그림이 없으면 코드로 그린 얼굴을 쓴다.
+const CITIZENS := [
+	["cit01", "cit02", "cit03", "cit04", "cit05", "cit06"],   # 20~30대
+	["cit07", "cit08", "cit09", "cit10", "cit11", "cit12"],   # 40~50대
+	["cit13", "cit14", "cit15", "cit16"],                     # 60대 이상
+]
+
+const SURNAMES := ["김", "이", "박", "최", "정", "강", "조", "윤", "장", "임", "한", "오", "서", "신", "권", "황", "안", "송", "류", "홍"]
+const GIVEN := ["민준", "서연", "지훈", "수빈", "영수", "정희", "미경", "상철", "은지", "현우", "동현", "혜진", "경자", "순희", "성민", "지영", "태호", "유진", "재석", "명숙", "광수", "보람", "하늘", "예린", "도윤", "승훈", "나래", "용철", "금순", "정민", "다은", "석진", "혜숙", "종원", "소영", "기범"]
+const SWAP_SYLLABLES := ["주", "정", "수", "진", "호", "희", "영", "석", "민", "경"]
+const STORY_NAMES := ["김도현", "문옥자", "박은비", "김태식", "오승민", "조현수", "차동훈", "윤서영", "노진수", "정다운", "한지우", "박달수", "이정숙", "오세린", "최준호", "김순자", "박영철", "장만식", "장만철", "양철민", "이미영", "윤성호", "송경아", "송기철", "정태민", "최만수", "남궁현", "남궁순애"]
+
+const PURPOSES := ["회사에", "은행에", "학교에", "보험 회사에", "전세 대출 서류로"]
+const SEAL_PURPOSES := ["차를 팔려고요.", "부동산 계약이 있어서요.", "은행에서 달래서요."]
+const RELATIONS := [["배우자", "남편", 0], ["배우자", "아내", 0], ["자녀", "어머니", -28], ["자녀", "아버지", -30], ["형제", "동생", 4], ["부모", "아들", 28], ["부모", "딸", 27]]
+const PROXY_EXCUSES := ["거동이 불편하셔서 제가 대신 왔어요.", "회사 때문에 못 오셔서 제가 왔어요.", "급하게 필요하다고 해서요."]
+const RANTS := ["왜 이렇게 오래 걸려요? 점심시간에 잠깐 나왔단 말이에요!", "아까 저 사람은 금방 해 주더니 나는 왜 이렇게 기다리게 해?", "공무원은 철밥통이라 이렇게 느긋한가 봐?"]
+
+const TRANSFERS := [
+	["passport", ["여권 기간이 끝났더라고요. 새로 만들려면 여기서 하면 되죠?"]],
+	["passport", ["다음 달에 출장을 가는데 여권을 잃어버렸어요. 재발급 여기서 돼요?"]],
+	["traffic", ["우리 집 대문 앞에 누가 차를 사흘째 세워 놨어요. 좀 빼 주세요."]],
+	["traffic", ["주차 딱지를 뗐는데 억울해서요. 그 자리 원래 차 세워도 되는 데거든요."]],
+	["clean", ["골목에 누가 자꾸 쓰레기봉투를 몰래 버리고 가요. 냄새 때문에 못 살겠어요."]],
+	["clean", ["음식물 쓰레기 수거차가 일주일째 안 왔어요. 여름도 아닌데 벌레가 꼬여요."]],
+	["welfare", ["어머니 기초연금을 신청하려는데 어디서 하나요?"]],
+	["welfare", ["일하다 다쳐서 석 달째 수입이 없어요. 생계비 지원 같은 거 없을까요?"]],
+	["welfare", ["아이가 장애 판정을 받았어요. 장애인 등록은 어디서 해요?"]],
+	["police", ["지하철에서 가방을 잃어버렸어요. 노트북이 들어 있었는데 찾을 방법이 없을까요?"]],
+	["police", ["윗집 사람이 층간소음 얘기했다고 죽여 버리겠다고 협박했어요. 무서워서 왔어요."]],
+	["police", ["인터넷 중고 거래로 돈을 보냈는데 물건이 안 와요. 연락도 끊겼고요."]],
+]
+
+
+# ─────────────────────────── 문서·기록 도우미 ───────────────────────────
+
+static func id_card(name: String, birth: String, addr: String, look: Dictionary, license := false, date := "2020.03.04") -> Dictionary:
+	return {"kind": "id", "type": "운전면허증" if license else "주민등록증", "name": name, "birth": birth, "addr": addr, "date": date, "look": look}
+
+
+static func form(title: String, subject: String, subject_birth: String, applicant: String, relation := "본인") -> Dictionary:
+	return {"kind": "form", "title": title, "subject": subject, "subject_birth": subject_birth, "applicant": applicant, "relation": relation}
+
+
+static func record(birth: String, addr: String, members: Array, seal := true, lost := "", look := {}) -> Dictionary:
+	var r := {"birth": birth, "addr": addr, "members": members, "seal": seal, "lost": lost}
+	if not look.is_empty():
+		r["look"] = look
+	return r
+
+
+## 전산 확인이 있어야 판단할 수 있는 신청인지 (전산 장애 중에는 받지 않는다)
+static func needs_db(c: Dictionary) -> bool:
+	for d in c.get("docs", []):
+		match String(d["kind"]):
+			"proxy", "reissue":
+				return true
+			"form":
+				if String(d["title"]).begins_with("인감") or d["applicant"] != d["subject"]:
+					return true
+	return false
+
+
+static func dept_name(key: String) -> String:
+	return DEPTS[key]["name"] if DEPTS.has(key) else key
+
+
+static func is_ours(c: Dictionary) -> bool:
+	return not String(c.get("correct", "")).begins_with("transfer:")
+
+
+static func date_num(s: String) -> int:
+	return int(s.replace(".", ""))
+
+
+# ─────────────────────────── 이야기 민원 ───────────────────────────
+
+static func story(id: String, flags: Dictionary) -> Dictionary:
+	var c: Dictionary = {}
+	match id:
+		"d1_first":
+			var L: Dictionary = LOOKS["jiwoo"]
+			c = {
+				"name": "한지우", "look": L, "mood": "normal",
+				"intro": ["안녕하세요. 주민등록등본 한 통 떼러 왔어요.", "편의점 아르바이트를 시작하는데, 사장님이 내라고 하셔서요."],
+				"docs": [id_card("한지우", "2004.05.17", "햇살동 25-4 햇살빌라 201호", L, false, "2022.06.10"),
+					form("주민등록표 등본 교부 신청서", "한지우", "2004.05.17", "한지우")],
+				"records": {"한지우": record("2004.05.17", "햇살동 25-4 햇살빌라 201호", [["한지우", "본인"]], false)},
+				"correct": "process", "thanks": "감사합니다! 수고하세요.",
+			}
+		"d1_dalsu":
+			var L: Dictionary = LOOKS["dalsu"]
+			c = {
+				"name": "박달수", "look": L, "mood": "angry", "phase": "hostile", "correct": "calm",
+				"intro": ["(번호표를 창구에 탁 내려놓는다)", "아니, 번호표 뽑고 사십 분을 기다렸어! 공무원들은 앉아서 커피나 마시고 말이야."],
+				"ignore": {
+					"lines": ["내가 낸 세금으로 월급 받는 사람들이 일을 이렇게 느려 터지게 해서야 되겠어?",
+						"옛날엔 동사무소 가면 금방금방 해 줬어. 요즘은 무슨 기계로 떼라고 하질 않나, 번호표를 뽑으라고 하질 않나...",
+						"......"],
+					"stress": 6, "result": "calm",
+					"then": {
+						"mood": "normal", "phase": "calm",
+						"intro": ["......됐고, 등본 한 통 줘.", "이런 건 원래 집사람이 다 했어. 내가 하려니까 뭐가 뭔지 알 수가 있어야지."],
+						"docs": [id_card("박달수", "1956.03.08", "햇살동 12-7", L, false, "2015.11.20"),
+							form("주민등록표 등본 교부 신청서", "박달수", "1956.03.08", "박달수")],
+						"records": {"박달수": record("1956.03.08", "햇살동 12-7", [["박달수", "본인"], ["이정숙", "배우자"]])},
+						"correct": "process", "thanks": "......수고해요.", "win_flag": "dalsu_served",
+						"outcomes": {},
+					},
+				},
+				"outcomes": {
+					"eject": {"rep": -4, "result": "wrong", "mood": "angry", "flag": "dalsu_ejected",
+						"say": "뭐? 나가라고? 좋아, 국민신문고에 올릴 거야. 이름 똑똑히 봐 뒀어.",
+						"event": "박달수 씨가 국민신문고에 '3번 창구 직원이 노인을 내쫓았다'는 민원을 올렸다."},
+					"guard": {"rep": -6, "result": "wrong", "mood": "angry", "flag": "dalsu_ejected",
+						"say": "청원경찰? 내가 뭘 했다고! 말 좀 했다고 경찰을 불러?",
+						"warn": "최 팀장 메모: 소리만 지르는 분한테 청원경찰은 과해요. 먹금하면 가라앉아요.",
+						"event": "박달수 씨가 국민신문고에 '3번 창구 직원이 노인을 내쫓았다'는 민원을 올렸다."},
+				},
+			}
+		"d1_passport":
+			c = {
+				"name": "오세린", "look": LOOKS["serin"], "mood": "happy",
+				"intro": ["안녕하세요. 다음 달에 신혼여행을 가는데, 여권 기간이 끝났더라고요.", "여기서 새로 만들 수 있죠?"],
+				"docs": [{"kind": "paper", "title": "여권 (기간 만료)", "rows": [["이름", "오세린"], ["기간 만료일", "2025.08.30"]]}],
+				"correct": "transfer:passport", "again": "여권은 대체 어디서 새로 만들어요?",
+				"thanks": "구청 1층이요? 알겠어요. 감사합니다!",
+			}
+		"d1_photo":
+			c = {
+				"name": "최준호", "look": LOOKS["junho"], "mood": "normal",
+				"intro": ["초본 한 통만 떼 주세요. 대출 서류에 넣어야 해서요.", "(신분증을 내밀고 시선을 피한다)"],
+				"docs": [id_card("최준호", "1991.07.02", "햇살동 44-1", LOOKS["junho_id"], false, "2018.02.14"),
+					form("주민등록표 초본 교부 신청서", "최준호", "1991.07.02", "최준호")],
+				"records": {"최준호": record("1991.07.02", "햇살동 44-1", [["최준호", "본인"]])},
+				"asks": [{"q": "신분증 사진이 본인 맞으세요?", "a": "네? 네... 그거 좀 옛날 사진이라서요. 그때보다 살이 많이 빠졌어요."}],
+				"correct": "reject", "reason": "신분증 사진이 창구 앞 사람과 다른 얼굴",
+				"flaw": {"reason": "photo", "pairs": [["id.look", "face"]], "reply": "......그게, 살이 빠져서 그렇다니까요. (목소리가 작아진다)"},
+				"reject_say": "......아, 네. 알겠습니다. (신분증을 챙겨 서둘러 나간다)",
+			}
+		"d2_grandma":
+			var L: Dictionary = LOOKS["soonja"]
+			var fam := [["박영철", "본인"], ["김순자", "배우자"]]
+			c = {
+				"name": "김순자", "look": L, "mood": "sad",
+				"intro": ["우리 영감이 내일 요양병원에 들어가요. 거기서 영감 등본을 떼 오라고 해서...", "영감은 거동을 못 해서 나 혼자 왔어요. 오늘까지 내야 한대요."],
+				"docs": [id_card("김순자", "1947.11.02", "햇살동 3-15", L, false, "2012.05.09"),
+					form("주민등록표 등본 교부 신청서", "박영철", "1944.05.19", "김순자", "배우자")],
+				"records": {"박영철": record("1944.05.19", "햇살동 3-15", fam), "김순자": record("1947.11.02", "햇살동 3-15", fam)},
+				"asks": [{"q": "위임장 가져오셨어요?", "a": "위임장이요? 그게 뭔지... 영감은 손이 떨려서 이름도 못 써요."},
+					{"q": "남편분이랑 같이 사세요?", "a": "그럼요. 이 집에서만 오십 년을 살았는데."}],
+				"correct": "process",
+				"outcomes": {
+					"process": {"rep": 3, "result": "right", "mood": "happy", "flag": "grandma_helped",
+						"say": "아이고, 됐네. 고마워요. 젊은 사람이 친절하기도 하지.",
+						"event": "김순자 할머니가 요양병원 서류를 제때 냈다며 2층 복지팀에 고맙다는 말을 남기고 갔다."},
+					"reject": {"rep": -3, "result": "wrong", "mood": "sad", "flag": "grandma_rejected",
+						"say": "......그럼 어떡하나. 병원에서는 오늘까지 내라던데.",
+						"warn": "최 팀장 메모: 방금 할머니, 전산을 보니 남편분과 같은 세대였어요. 세대원은 위임장 없이 등본을 뗄 수 있어요.",
+						"event": "김순자 할머니는 요양병원 서류를 오늘까지 내지 못했다. 박영철 할아버지의 입원은 다음 달로 밀렸다고 한다."},
+				},
+			}
+		"d2_vip":
+			var L: Dictionary = LOOKS["mansik"]
+			c = {
+				"name": "장만식", "look": L, "mood": "normal",
+				"intro": ["동생 인감증명서 한 통 떼 줘요. 부동산 계약 때문에 급해.", "위임장? 그런 거 없어도 돼. 내가 구의원 김 의원이랑 형님 동생 하는 사이야. 전화 한 통이면 다 돼."],
+				"docs": [id_card("장만식", "1968.02.21", "햇살동 40-2", L, false, "2016.08.01"),
+					form("인감증명서 발급 신청서", "장만철", "1972.09.14", "장만식", "형제")],
+				"records": {"장만식": record("1968.02.21", "햇살동 40-2", [["장만식", "본인"]]),
+					"장만철": record("1972.09.14", "달빛동 8-1", [["장만철", "본인"]])},
+				"correct": "reject", "reason": "위임장 없는 인감증명서 대리 발급",
+				"flaw": {"reason": "proxy", "pairs": [["form.relation", "rule:인감증명 대리 발급"], ["form.applicant", "rule:인감증명 대리 발급"]],
+					"reply": "위임장 없어도 된다니까 그러네. 김 의원한테 지금 전화해 봐?"},
+				"outcomes": {
+					"reject": {"rep": 1, "stress": 5, "result": "right", "mood": "angry",
+						"say": "허, 참. 김 의원한테 얘기해 둘 테니까 그런 줄 알아요."},
+					"process": {"pen": 2, "result": "wrong", "mood": "happy", "flag": "vip_favor",
+						"say": "그렇지. 말이 좀 통하네.",
+						"warn": "최 팀장 메모: 위임장 없이 남의 인감증명서를 떼 주면 안 돼요. 사고 나면 우리가 책임져요.",
+						"event": "장만식 씨의 동생이 주민센터에 전화했다. 형이 자기 인감증명서를 어떻게 떼 갔느냐고 따졌다."},
+					"guard": {"rep": -3, "result": "wrong", "mood": "angry", "say": "허! 경찰? 두고 봐요.",
+						"warn": "최 팀장 메모: 말로 끝날 일에 청원경찰은 과해요. 반려면 충분해요."},
+				},
+			}
+		"d2_drunk":
+			c = {
+				"name": "양철민", "look": LOOKS["drunk"], "mood": "angry", "phase": "hostile", "correct": "guard",
+				"intro": ["(술 냄새가 확 풍긴다)", "야! 여기 책임자 나오라 그래! 너희가 떼 준 서류 때문에 내 대출이 막혔다고!"],
+				"ignore": {
+					"lines": ["너 지금 내 말 무시하냐? 어?", "(창구 유리를 주먹으로 쾅 내리친다)"],
+					"stress": 8, "result": "escalate",
+					"escalate": "다 때려 부숴 버릴 거야! (번호표 기계를 발로 걷어찬다)",
+					"violent": {
+						"ignore": {"keep": true, "stress": 10, "say": "(모니터를 붙잡고 흔든다) 나와! 나오라고!"},
+						"eject": {"keep": true, "stress": 8, "say": "안 나가! 네가 뭔데 나가라 마라야!"},
+						"guard": {"rep": 2, "result": "right", "mood": "angry", "time": 10,
+							"say": "(청원경찰에게 끌려 나가며) 놔! 놓으라고!", "note": "청원경찰이 양철민 씨를 데리고 나갔다."},
+					},
+				},
+				"outcomes": {
+					"eject": {"escalate": true, "say": "나가라고? 어디 한번 해 보자는 거야?"},
+					"guard": {"rep": 2, "result": "right", "mood": "angry", "time": 10,
+						"say": "(청원경찰에게 끌려 나가며) 이거 놔! 내 돈 물어내!", "note": "청원경찰이 술 취한 민원인을 데리고 나갔다."},
+				},
+			}
+		"d3_dalsu":
+			var L: Dictionary = LOOKS["dalsu"]
+			var ejected: bool = flags.get("dalsu_ejected", false)
+			c = {
+				"name": "박달수", "look": L, "mood": "angry" if ejected else "normal",
+				"intro": ["(휴대폰 화면을 창구에 들이민다) 이거 봐. 국민신문고. 월요일에 나 쫓아낸 게 당신이지?", "......됐어. 등본이나 한 통 줘."] if ejected
+					else ["어이, 또 왔어. 등본 한 통 줘.", "뭘 그렇게 봐. 오늘은 소리 안 질러."],
+				"docs": [id_card("박달수", "1956.03.08", "햇살동 12-7", L, false, "2015.11.20"),
+					form("주민등록표 등본 교부 신청서", "박달수", "1956.03.08", "박달수")],
+				"records": {"박달수": record("1956.03.08", "햇살동 12-7", [["박달수", "본인"], ["이정숙", "배우자"]])},
+				"asks": [{"q": "월요일에도 등본 떼 가시지 않으셨어요?", "a": "......그랬나. 그랬지. 그냥 줘. 한 통 더 있으면 좋지, 뭐."},
+					{"q": "이정숙 님은 잘 계세요?", "a": "(잠시 말이 없다) ......등본이나 줘요."}],
+				"correct": "process", "thanks": "......수고해요.",
+			}
+		"d3_mee":
+			c = {
+				"name": "이미영", "look": LOOKS["mee"], "mood": "angry",
+				"intro": ["구청에 갔더니 여기로 가래서 왔어요. 여기서도 또 딴 데 가라고 하면 저 진짜 소리 지를 거예요. 오늘만 세 번째예요.",
+					"남편이 공사장에서 떨어져서 석 달째 일을 못 해요. 애들 급식비도 밀렸고... 긴급 생계비 같은 거 신청하려고요."],
+				"again": "긴급 생계비 신청은 대체 어디서 하는 거예요?",
+				"correct": "transfer:welfare",
+				"win_flag": "mee_helped", "win_event": "2층 복지팀에서 이미영 씨의 긴급 생계비 신청이 접수됐다.",
+				"fail_flag": "mee_hurt", "fail_event": "이미영 씨는 결국 아무 데서도 신청하지 못하고 돌아갔다.",
+				"thanks": "2층이요? 같은 건물이요? ......진작 누가 이렇게만 말해 줬어도.",
+				"ignore": {"lines": ["......지금 제 말 듣고 계신 거예요?", "(눈물을 참는다) ......다들 똑같네요."], "stress": 4, "result": "leave"},
+				"outcomes": {
+					"reject": {"rep": -5, "result": "wrong", "mood": "sad", "say": "......여기서도 안 된다고요? 그럼 저는 어디로 가요?"},
+					"eject": {"rep": -8, "result": "wrong", "mood": "sad", "say": "제가 뭘 잘못했는데요? ......알았어요, 갈게요.",
+						"warn": "최 팀장 메모: 화가 난 거랑 진상은 달라요. 저분은 도움이 필요한 분이었어요."},
+					"guard": {"rep": -8, "result": "wrong", "mood": "sad", "say": "경찰이요? 제가요? ......기가 막히네.",
+						"warn": "최 팀장 메모: 화가 난 거랑 진상은 달라요. 저분은 도움이 필요한 분이었어요."},
+					"ignore_end": {"rep": -6, "result": "wrong", "mood": "sad", "say": "(말없이 번호표를 구겨 버리고 나간다)"},
+				},
+			}
+		"d3_license":
+			var L: Dictionary = LOOKS["sungho"]
+			c = {
+				"name": "윤성호", "look": L, "mood": "normal",
+				"intro": ["초본 한 통 떼 주세요. 택배 회사에 새로 들어가는데 내래요."],
+				"docs": [id_card("윤성호", "1985.12.03", "햇살동 18-2", L, true, "2026.09.30"),
+					form("주민등록표 초본 교부 신청서", "윤성호", "1985.12.03", "윤성호")],
+				"records": {"윤성호": record("1985.12.03", "햇살동 18-2", [["윤성호", "본인"]])},
+				"asks": [{"q": "면허증 유효기간이 지났는데요.", "a": "아, 그거... 적성검사를 깜빡했네요. 그래도 사진은 저 맞잖아요. 오늘 안 내면 입사가 밀려요."}],
+				"correct": "reject", "reason": "유효기간이 지난 운전면허증 (2026.09.30)",
+				"flaw": {"reason": "expired", "pairs": [["id.date", "today"], ["id.date", "rule:운전면허증 유효기간"]],
+					"reply": "아, 그거... 적성검사를 깜빡했네요. 그래도 사진은 저 맞잖아요."},
+				"reject_say": "......주민등록증은 집에 있는데. 다녀오면 문 닫겠네요.",
+			}
+		"d4_death":
+			var L: Dictionary = LOOKS["kyunga"]
+			c = {
+				"name": "송경아", "look": L, "mood": "sad",
+				"intro": ["아버지가 그저께 돌아가셨어요. 사망신고 하러 왔습니다.", "(서류를 가지런히 내민다)"],
+				"docs": [id_card("송경아", "1970.08.15", "달빛동 30-6", L, false, "2019.04.22"),
+					{"kind": "death_form", "deceased": "송기철", "deceased_birth": "1941.04.03", "date": "2026.10.13", "reporter": "송경아", "relation": "자녀"},
+					{"kind": "death_cert", "deceased": "송기철", "deceased_birth": "1941.04.03", "date": "2026.10.13", "place": "햇살요양병원"}],
+				"records": {"송기철": record("1941.04.03", "햇살동 7-2", [["송기철", "본인"]]),
+					"송경아": record("1970.08.15", "달빛동 30-6", [["송경아", "본인"]])},
+				"correct": "process", "thanks": "......감사합니다. 이런 건 처음이라 뭘 챙겨야 할지 몰랐는데.",
+			}
+		"d4_mee":
+			if not flags.get("mee_helped", false):
+				return {}
+			c = {
+				"name": "이미영", "look": LOOKS["mee"], "mood": "happy", "phase": "gift", "correct": "decline",
+				"intro": ["저 기억하세요? 어제 2층 복지팀으로 가라고 해 주셨잖아요.",
+					"거기 가니까 담당 선생님이 바로 접수해 주셨어요. 이번 달 생계비가 나온대요.",
+					"(박카스 한 상자를 창구에 올려놓는다) 별거 아니에요. 드세요."],
+				"custom": [["accept", "받는다"], ["decline", "정중히 사양한다"]],
+				"outcomes": {
+					"accept": {"stress": -10, "result": "neutral", "mood": "happy", "flag": "took_gift",
+						"say": "받아 주셔서 다행이에요. 수고하세요!"},
+					"decline": {"stress": 5, "result": "neutral", "mood": "sad", "flag": "declined_gift",
+						"say": "아... 네, 그렇죠. 괜히 제가 곤란하게 해 드렸네요."},
+				},
+			}
+		"d4_scam":
+			var L: Dictionary = LOOKS["taemin"]
+			c = {
+				"name": "정태민", "look": L, "mood": "normal",
+				"intro": ["삼촌 인감증명서 떼러 왔습니다. 삼촌이 요즘 거동이 불편하셔서요.", "위임장이랑 다 챙겨 왔어요."],
+				"docs": [id_card("정태민", "1991.10.08", "별빛동 22-9", L, false, "2017.07.30"),
+					form("인감증명서 발급 신청서", "최만수", "1945.01.22", "정태민", "조카"),
+					{"kind": "proxy", "grantor": "최만수", "grantor_birth": "1945.01.22", "grantee": "정태민", "purpose": "인감증명서 발급", "seal": "인감"}],
+				"records": {"최만수": record("1945.01.22", "햇살동 60-1", [["최만수", "본인"]], true, "2026.10.14 인감 분실 신고 (본인 방문)"),
+					"정태민": record("1991.10.08", "별빛동 22-9", [["정태민", "본인"]])},
+				"asks": [{"q": "최만수 님과 어떤 관계세요?", "a": "조카예요. 삼촌 댁에 자주 들러요."},
+					{"q": "삼촌분께 전화로 확인해 봐도 될까요?", "a": "(잠깐 멈칫한다) ......삼촌이 귀가 어두우셔서 전화를 잘 못 받으세요. 도장도 이렇게 들고 왔는데, 그냥 해 주시면 안 돼요?"}],
+				"correct": "guard",
+				"flaw": {"reason": "proxy", "label": "분실 신고된 인감", "pairs": [["rec:최만수.lost", "proxy.seal"], ["rec:최만수.lost", "rule:분실 인감"], ["rec:최만수.lost", "proxy.grantor"]],
+					"reply": "(얼굴이 하얗게 질린다) 그, 그건... 삼촌이 착각하신 거예요. 도장은 여기 있잖아요."},
+				"outcomes": {
+					"guard": {"rep": 5, "result": "right", "mood": "angry", "flag": "scam_caught", "time": 10,
+						"say": "(청원경찰이 다가오자 문 쪽으로 뛰다 붙잡힌다) 이거 놔요! 삼촌이 시킨 거라니까!",
+						"note": "청원경찰이 정태민을 붙잡아 경찰에 넘겼다.",
+						"event": "경찰 조사 결과, 정태민은 삼촌 최만수 할아버지 댁에서 인감을 훔쳐 집을 담보로 대출을 받으려 했다. 할아버지는 집을 지켰다."},
+					"reject": {"result": "neutral", "mood": "normal", "flag": "scam_escaped",
+						"say": "......아, 네. 다음에 올게요. (서둘러 나간다)",
+						"warn": "최 팀장 메모: 분실 신고된 인감이었어요. 돌려보내지 말고 붙잡아 뒀어야 해요.",
+						"event": "정태민은 그대로 사라졌다. 최만수 할아버지의 인감을 누가 가져갔는지는 아직 모른다."},
+					"transfer:police": {"result": "neutral", "mood": "normal", "flag": "scam_escaped",
+						"say": "경찰서요? ......네, 알겠습니다. (서둘러 나간다)",
+						"warn": "최 팀장 메모: 사기범한테 경찰서에 가라고 하면 누가 가요. 청원경찰을 불러 붙잡았어야 해요.",
+						"event": "정태민은 그대로 사라졌다. 최만수 할아버지의 인감을 누가 가져갔는지는 아직 모른다."},
+					"eject": {"result": "neutral", "mood": "normal", "flag": "scam_escaped",
+						"say": "......네. (서둘러 나간다)",
+						"warn": "최 팀장 메모: 분실 신고된 인감이었어요. 돌려보내지 말고 붙잡아 뒀어야 해요.",
+						"event": "정태민은 그대로 사라졌다. 최만수 할아버지의 인감을 누가 가져갔는지는 아직 모른다."},
+					"process": {"pen": 3, "result": "wrong", "mood": "happy", "flag": "scam_done",
+						"say": "감사합니다. (서류를 챙겨 서둘러 나간다)"},
+				},
+			}
+		"d4_envelope":
+			var L: Dictionary = LOOKS["donghun"]
+			c = {
+				"name": "차동훈", "look": L, "mood": "happy",
+				"intro": ["윤서영 씨 등본 한 통 떼러 왔습니다. 제 여동생인데, 부탁을 받아서요.",
+					"(신청서와 위임장 사이에 두툼한 흰 봉투를 끼워 내민다)",
+					"바쁘실 텐데 이걸로 커피라도 한잔하세요."],
+				"docs": [id_card("차동훈", "1984.06.09", "은행동 14-2", L, false, "2019.10.30"),
+					form("주민등록표 등본 교부 신청서", "윤서영", "1993.04.18", "차동훈", "형제"),
+					{"kind": "proxy", "grantor": "윤서영", "grantor_birth": "1993.08.14", "grantee": "차동훈", "purpose": "주민등록표 등본 발급", "seal": "일반"},
+					{"kind": "paper", "title": "흰 봉투", "rows": [["겉봉", "아무것도 적혀 있지 않다"], ["속", "5만 원권 여섯 장"]]}],
+				"records": {"윤서영": record("1993.04.18", "햇살동 72-3 푸른아파트 1203호", [["윤서영", "본인"]], false, "", LOOKS["seoyoung"]).merged({"restrict": RESTRICT_NOTE}),
+					"차동훈": record("1984.06.09", "은행동 14-2", [["차동훈", "본인"]])},
+				"asks": [{"q": "성이 다르시네요?", "a": "아, 어머니가 재혼하셔서요. 하하. 요즘 그런 집 많잖아요."},
+					{"q": "동생분은 왜 직접 안 오셨어요?", "a": "걔가 요즘 좀 바빠서요. 오빠가 대신 해 주기로 했죠."}],
+				"correct": "reject", "reason": "교부 제한 대상의 등본을 남에게 발급",
+				"flaw": {"reason": "restrict", "alt": ["info"], "label": "교부 제한 대상",
+					"pairs": [["rec:윤서영.restrict", "rule:교부 제한"], ["rec:윤서영.restrict", "form.subject"],
+						["proxy.grantor_birth", "rec:윤서영.birth"], ["proxy.grantor_birth", "form.subject_birth"]],
+					"reply": "(웃음이 굳는다) ......그런 게 있었어요? 동생이 깜빡했나 보네. 그냥 해 주시면 안 될까요? (봉투를 조금 더 밀어 넣는다)"},
+				"custom": [["bribe", "봉투를 받고 떼 준다"]],
+				"outcomes": {
+					"bribe": {"money": 300000, "result": "neutral", "mood": "happy", "flag": "bribe_taken",
+						"say": "(봉투가 서랍으로 들어가는 걸 보고 웃는다) 역시 말이 통하시네요.",
+						"event": "서랍 속 흰 봉투에는 5만 원권 여섯 장이 들어 있었다."},
+					"process": {"pen": 2, "result": "wrong", "mood": "happy", "flag": "stalker_given",
+						"say": "(봉투를 도로 챙겨 넣으며) 감사합니다. 수고하세요.",
+						"warn": "최 팀장 메모: 윤서영 씨는 교부 제한 대상이었어요. 전산의 [주의]를 봤어야 해요."},
+					"reject": {"rep": 1, "result": "right", "mood": "normal", "flag": "envelope_refused",
+						"say": "......그럼 다음에 다시 오죠. (봉투를 챙기다 명함 한 장을 떨어뜨리고 나간다)",
+						"event": "차동훈이 떨어뜨린 명함에는 '○○ 심부름센터 실장'이라고 적혀 있었다."},
+					"guard": {"rep": 2, "result": "right", "mood": "angry", "flag": "envelope_guarded", "time": 10,
+						"say": "(청원경찰이 다가오자 봉투를 낚아채 달아난다)",
+						"note": "차동훈은 봉투를 챙겨 달아났다.",
+						"event": "경찰이 알려 왔다. 차동훈은 심부름센터 직원이었고, 윤서영 씨의 전 남편에게 돈을 받고 주소를 캐던 중이었다."},
+				},
+			}
+		"d5_auditor":
+			var L: Dictionary = LOOKS["hyun"]
+			c = {
+				"name": "남궁현", "look": L, "mood": "normal",
+				"intro": ["어머니 등본 한 통 떼러 왔어요. 은행 대출 서류에 필요하대서요.",
+					"위임장을 깜빡했는데, 오늘 마감이라... 한 번만 좀 부탁드릴게요. 아들인 거 전산 보면 다 나오잖아요."],
+				"docs": [id_card("남궁현", "1982.04.11", "햇살동 33-8", L, false, "2021.01.15"),
+					form("주민등록표 등본 교부 신청서", "남궁순애", "1955.06.30", "남궁현", "자녀")],
+				"records": {"남궁현": record("1982.04.11", "햇살동 33-8", [["남궁현", "본인"], ["서은정", "배우자"]]),
+					"남궁순애": record("1955.06.30", "은행동 5-1", [["남궁순애", "본인"]])},
+				"asks": [{"q": "어머님과 같이 사세요?", "a": "아뇨, 어머니는 은행동에 따로 사세요. 그래도 아들이니까 괜찮죠?"}],
+				"correct": "reject", "reason": "위임장 없는 비세대원 대리 발급",
+				"flaw": {"reason": "proxy", "pairs": [["form.relation", "rule:대리 신청"], ["form.applicant", "rule:대리 신청"], ["form.applicant", "rec:남궁순애.members"]],
+					"reply": "위임장이 꼭 있어야 하나요? 제가 아들인데요."},
+				"outcomes": {
+					"reject": {"rep": 3, "result": "right", "mood": "happy", "flag": "audit_pass",
+						"say": "(웃으며 신분증을 하나 더 꺼낸다) 구청 감사팀 남궁현입니다. 오늘 창구를 점검하는 중이었어요. 원칙대로 잘하셨습니다.",
+						"note": "감사팀 암행 점검을 통과했다."},
+					"process": {"pen": 3, "result": "wrong", "mood": "normal", "flag": "audit_fail",
+						"say": "(표정이 굳는다) ......구청 감사팀 남궁현입니다. 방금 건은 기록해 두겠습니다.",
+						"warn": "최 팀장 메모: ......감사팀이었어요. 위임장 없이 따로 사는 가족 서류를 떼 준 건 명백한 위반이에요."},
+				},
+			}
+		"d5_dalsu", "w2_dalsu":
+			if id == "w2_dalsu" and flags.get("dalsu_done", false):
+				return {}
+			var L: Dictionary = LOOKS["dalsu"]
+			var ejected: bool = flags.get("dalsu_ejected", false)
+			var first: Array = ["......지난주에 못 한 거, 오늘은 해야겠어."] if id == "w2_dalsu" \
+				else (["......오늘은 소리 안 지를 테니까 들어 봐요."] if ejected else ["......오늘은 등본 말고. 이거."])
+			c = {
+				"name": "박달수", "look": L, "mood": "sad",
+				"intro": first + [
+					"(서류 두 장을 창구에 내려놓는다)",
+					"집사람이 7월에 갔어. 사망신고는 한 달 안에 해야 한다는 것도 알아. 아는데...",
+					"그걸 하면 등본에서 그 사람 이름이 빠지잖아. 그래서 자꾸 등본만 떼러 왔어. 거기엔 아직 같이 있으니까.",
+					"과태료 나오면 낼게. 이제 해 줘요."],
+				"docs": [id_card("박달수", "1956.03.08", "햇살동 12-7", L, false, "2015.11.20"),
+					{"kind": "death_form", "deceased": "이정숙", "deceased_birth": "1958.09.27", "date": "2026.07.21", "reporter": "박달수", "relation": "배우자"},
+					{"kind": "death_cert", "deceased": "이정숙", "deceased_birth": "1958.09.27", "date": "2026.07.21", "place": "햇살대학병원"}],
+				"records": {"박달수": record("1956.03.08", "햇살동 12-7", [["박달수", "본인"], ["이정숙", "배우자"]]),
+					"이정숙": record("1958.09.27", "햇살동 12-7", [["박달수", "본인"], ["이정숙", "배우자"]])},
+				"correct": "process",
+				"outcomes": {
+					"process": {"rep": 3, "result": "right", "mood": "sad", "flag": "dalsu_done",
+						"say": "......고마워요. 월요일엔 내가 좀 심했어." if ejected else "......고마워요. 그동안 소리 질러서 미안했어.",
+						"event": "박달수 씨의 등본에서 이정숙 씨의 이름이 지워졌다. 이제 등본은 한 줄이다."},
+					"reject": {"rep": -4, "result": "wrong", "mood": "sad",
+						"say": "......안 된다고? 뭐가 또 모자라?",
+						"warn": "최 팀장 메모: 신고서와 진단서가 다 있었어요. 기한이 지나도 접수는 해야 해요."},
+				},
+			}
+		"w2_jiwoo":
+			var L: Dictionary = LOOKS["jiwoo"]
+			c = {
+				"name": "한지우", "look": L, "mood": "happy",
+				"intro": ["안녕하세요! 저 기억하세요? 지난주에 편의점 서류 떼러 왔었는데.", "학교 앞 달빛동으로 방을 옮겼어요. 전입신고 하러 왔어요."],
+				"docs": [id_card("한지우", "2004.05.17", "햇살동 25-4 햇살빌라 201호", L, false, "2022.06.10"),
+					{"kind": "move", "name": "한지우", "birth": "2004.05.17", "old_addr": "햇살동 25-4 햇살빌라 201호", "new_addr": "달빛동 3-9 솔빛원룸 402호"}],
+				"records": {"한지우": record("2004.05.17", "햇살동 25-4 햇살빌라 201호", [["한지우", "본인"]], false, "", L)},
+				"correct": "reject", "reason": "새 주소가 햇살동이 아님", "win_flag": "jiwoo_moved",
+				"flaw": {"reason": "area", "pairs": [["move.new_addr", "rule:전입신고"]], "reply": "아, 이사 간 동네 주민센터로 가야 하는 거예요? 전혀 몰랐어요."},
+				"reject_say": "그럼 달빛동 주민센터로 가 볼게요. 지난번에 친절하게 해 주셔서 고마웠어요!",
+			}
+		"w2_reissue":
+			var L: Dictionary = LOOKS["okja"]
+			c = {
+				"name": "문옥자", "look": L, "mood": "sad",
+				"intro": ["시장에서 장 보다가 지갑을 통째로 잃어버렸어요. 주민등록증도 거기 들어 있었고...",
+					"다시 만들 수 있다고 해서 왔는데, 이제 나라는 걸 증명할 게 하나도 없네요."],
+				"docs": [{"kind": "reissue", "name": "문옥자", "birth": "1951.02.08", "addr": "햇살동 15-3", "cause": "분실"}],
+				"records": {"문옥자": record("1951.02.08", "햇살동 15-3", [["문옥자", "본인"]], true, "", L)},
+				"asks": [{"q": "신분증이 없으시면 본인 확인은...", "a": "그러게요. 얼굴 보고 알 수 있으면 좋겠는데."}],
+				"correct": "process", "win_flag": "okja_done",
+				"thanks": "(전산 화면 속 자기 사진을 보고 웃는다) 아이고, 저게 나네. 세상 좋아졌어.",
+			}
+		"w2_mansu":
+			var L: Dictionary = LOOKS["mansu"]
+			var rec := {"최만수": record("1945.01.22", "햇살동 60-1", [["최만수", "본인"]], true, "", L)}
+			var idc := id_card("최만수", "1945.01.22", "햇살동 60-1", L, false, "2014.03.18")
+			if flags.get("scam_caught", false):
+				c = {
+					"name": "최만수", "look": L, "mood": "happy",
+					"intro": ["지난주에 우리 조카 녀석 붙잡아 준 게 이 창구 양반이라며?", "도장은 새로 파서 인감 등록까지 다시 했어요. 은행에 낼 인감증명서 한 통만 떼 줘요."],
+					"docs": [idc, form("인감증명서 발급 신청서", "최만수", "1945.01.22", "최만수")],
+					"records": rec, "correct": "process", "win_flag": "mansu_thanked",
+					"thanks": "고마워요. 그 녀석 일은 마음이 아프지만... 그래도 집은 지켰으니까.",
+				}
+			elif flags.get("scam_done", false):
+				c = {
+					"name": "최만수", "look": L, "mood": "sad",
+					"intro": ["변호사가 등본을 떼 오래서 왔어요.", "(한참 창구를 바라본다) 지난주에 여기서 내 인감증명서가 나갔다더군. 조카 녀석이 그걸로 내 집을 담보로 돈을 빌려 갔어요."],
+					"docs": [idc, form("주민등록표 등본 교부 신청서", "최만수", "1945.01.22", "최만수")],
+					"records": rec, "correct": "process", "win_flag": "mansu_sued",
+					"thanks": "......일이니까 그랬겠지. 수고해요.",
+				}
+			else:
+				return {}
+		"w2_taemin":
+			if not flags.get("scam_escaped", false):
+				return {}
+			var L: Dictionary = LOOKS["taemin"]
+			var gone := {"result": "neutral", "mood": "normal", "flag": "taemin_escaped2", "say": "......네. (모자를 푹 눌러쓰고 서둘러 나간다)",
+				"warn": "최 팀장 메모: 저 얼굴, 지난주 최만수 할아버지 인감을 들고 왔던 사람이에요! 위조 신분증이면 청원경찰을 불렀어야 해요.",
+				"event": "정태민은 또 사라졌다."}
+			c = {
+				"name": "정태민", "look": L, "mood": "normal",
+				"intro": ["인감증명서 한 통 떼 주세요. 본인입니다.", "(신분증을 창구에 올려놓고 모자를 눌러쓴다)"],
+				"docs": [id_card("김도현", "1990.03.27", "햇살동 48-6 은하맨션 305호", L, false, "2023.05.11"),
+					form("인감증명서 발급 신청서", "김도현", "1990.03.27", "김도현")],
+				"records": {"김도현": record("1990.03.27", "햇살동 48-6 은하맨션 305호", [["김도현", "본인"]], true, "", LOOKS["dohyun"])},
+				"asks": [{"q": "혹시 지난주에도 여기 오시지 않았어요?", "a": "(웃음기가 사라진다) ......처음 오는 건데요."}],
+				"correct": "guard", "reason": "위조 신분증 (전산 사진과 다른 얼굴)",
+				"flaw": {"reason": "photo", "label": "위조 신분증 (전산 사진과 다른 얼굴)",
+					"pairs": [["rec:김도현.photo", "face"], ["rec:김도현.photo", "id.look"]],
+					"reply": "(표정이 굳는다) 전산이 잘못된 거겠죠. 신분증 사진 보세요, 저잖아요."},
+				"outcomes": {
+					"guard": {"rep": 5, "result": "right", "mood": "angry", "flag": "taemin_caught", "time": 10,
+						"say": "(청원경찰이 다가오자 뛰려다 붙잡힌다) 놔! 이거 놓으라고!", "note": "청원경찰이 정태민을 붙잡았다.",
+						"event": "경찰이 알려 왔다. 김도현 명의로 신분증을 위조한 사람은 지난주 최만수 할아버지 인감을 들고 왔던 정태민이었다. 이번엔 김도현 씨 집을 노렸다."},
+					"reject": gone, "eject": gone, "transfer:police": gone,
+					"process": {"pen": 3, "result": "wrong", "mood": "happy", "flag": "taemin_done",
+						"say": "감사합니다. (서류를 챙겨 빠르게 나간다)",
+						"warn": "최 팀장 메모: 신분증 사진은 본인인데 전산 사진이 달랐어요. 위조 신분증이었어요."},
+				},
+			}
+		"w2_mee_again":
+			if not flags.get("mee_hurt", false):
+				return {}
+			c = {
+				"name": "이미영", "look": LOOKS["mee"], "mood": "sad",
+				"intro": ["......저 기억 안 나시죠. 지난주에도 여기 왔었는데.",
+					"그 뒤로 구청 앞에 사흘을 서 있었어요. 이제 정말 마지막으로 물어볼게요. 긴급 생계비, 어디서 신청해요?"],
+				"again": "긴급 생계비는 어디서 신청해요?",
+				"correct": "transfer:welfare",
+				"win_flag": "mee_second", "win_event": "이미영 씨의 긴급 생계비 신청이 2층 복지팀에서 드디어 접수됐다. 처음 찾아온 날로부터 엿새가 지났다.",
+				"fail_flag": "mee_lost", "fail_event": "이미영 씨는 다시는 주민센터에 오지 않았다.",
+				"thanks": "......2층이요. 같은 건물. ......네, 알겠어요.",
+				"ignore": {"lines": ["......", "(아무 말 없이 돌아선다)"], "stress": 4, "result": "leave"},
+				"outcomes": {
+					"reject": {"rep": -5, "result": "wrong", "mood": "sad", "say": "......네. 그럴 줄 알았어요."},
+					"eject": {"rep": -8, "result": "wrong", "mood": "sad", "say": "......네. 그럴 줄 알았어요."},
+					"guard": {"rep": -8, "result": "wrong", "mood": "sad", "say": "......네. 그럴 줄 알았어요."},
+					"ignore_end": {"rep": -6, "result": "wrong", "mood": "sad", "say": "(아무 말 없이 돌아선다)"},
+				},
+			}
+		"w2_mee":
+			if not flags.get("mee_helped", false):
+				return {}
+			var L: Dictionary = LOOKS["mee"]
+			c = {
+				"name": "이미영", "look": L, "mood": "happy",
+				"intro": ["안녕하세요! 긴급지원을 한 달 더 연장한다고 등본을 떼 오래요.", "남편은 지난주부터 재활 치료 다녀요. 걷는 연습부터 한대요."],
+				"docs": [id_card("이미영", "1980.02.11", "햇살동 51-3", L, false, "2020.09.14"),
+					form("주민등록표 등본 교부 신청서", "이미영", "1980.02.11", "이미영")],
+				"records": {"이미영": record("1980.02.11", "햇살동 51-3", [["이미영", "본인"], ["조현수", "배우자"]], true, "", L)},
+				"correct": "process", "win_flag": "mee_extended",
+				"thanks": "애들 급식비도 다 냈어요. 다 여기서부터 시작된 거예요. 고마워요.",
+			}
+		"w2_noh_favor":
+			var L: Dictionary = LOOKS["noh"]
+			var favor := {"noh": 20, "result": "neutral", "mood": "happy", "flag": "noh_favor_done",
+				"say": "역시! 3번이 뭘 좀 아네. 이 은혜는 안 잊는다."}
+			c = {
+				"name": "노진수", "look": L, "mood": "happy",
+				"intro": ["(점심시간, 최 팀장 자리가 비어 있다. 2번 창구 노 주무관이 의자를 끌고 건너온다)",
+					"3번, 부탁 하나만 하자. 우리 처제가 급하게 인감증명서가 필요하대.",
+					"위임장은 내일 받아다 줄게. 우리끼리 그 정도는 되잖아, 응?"]
+					+ (["지난주에 점심때 내 창구 봐 준 것도 고마웠고. 이번 한 번만."] if flags.get("noh_lunch_helped", false) else []),
+				"docs": [id_card("노진수", "1971.06.30", "햇살동 22-4", L, false, "2016.02.03"),
+					form("인감증명서 발급 신청서", "박은비", "1989.11.23", "노진수", "형부")],
+				"records": {"박은비": record("1989.11.23", "은행동 9-12", [["박은비", "본인"]], true, "", LOOKS["eunbi"]),
+					"노진수": record("1971.06.30", "햇살동 22-4", [["노진수", "본인"]], true, "", L)},
+				"correct": "reject", "reason": "위임장 없는 인감증명서 대리 발급",
+				"flaw": {"reason": "proxy", "alt": ["system"], "pairs": [["form.relation", "rule:인감증명 대리 발급"], ["form.applicant", "rule:인감증명 대리 발급"]],
+					"reply": "아이, 딱딱하게 굴지 말고. 내가 이 동네에서 20년을 일했어. 위임장은 진짜 내일 갖다준다니까."},
+				"custom": [["noh_yes", "떼 준다"]],
+				"outcomes": {
+					"noh_yes": favor, "process": favor,
+					"reject": {"noh": -20, "result": "right", "mood": "normal", "flag": "noh_refused",
+						"say": "......그래, 알았어. 원칙대로 하셔. (의자를 끌고 돌아간다)"},
+					"eject": {"noh": -30, "result": "wrong", "mood": "angry", "flag": "noh_refused", "say": "나가라고? 나한테? ......허, 참."},
+					"guard": {"noh": -40, "result": "wrong", "mood": "angry", "flag": "noh_refused", "say": "청원경찰? 동료한테 그게 할 소리야?",
+						"warn": "최 팀장 메모(돌아와서): 동료한테 청원경찰은 좀... 거절만 해도 됐어요."},
+				},
+			}
+		"w2_seoyoung":
+			if flags.get("stalker_given", false):
+				return {}
+			var L: Dictionary = LOOKS["seoyoung"]
+			c = {
+				"name": "윤서영", "look": L, "mood": "normal",
+				"intro": ["등본 한 통 떼러 왔어요. 본인이에요.",
+					"(주위를 한 번 둘러보고 목소리를 낮춘다) 혹시... 지난주에 누가 제 서류 떼러 오지 않았어요? 경찰에서 연락이 와서요."
+					if flags.get("envelope_guarded", false) else
+					"(주위를 한 번 둘러보고 목소리를 낮춘다) 요즘 관리실에 어떤 남자가 제 호수를 묻고 갔대요. 괜히 불안해서요."],
+				"docs": [id_card("윤서영", "1993.04.18", "햇살동 72-3 푸른아파트 1203호", L, false, "2025.11.02"),
+					form("주민등록표 등본 교부 신청서", "윤서영", "1993.04.18", "윤서영")],
+				"records": {"윤서영": record("1993.04.18", "햇살동 72-3 푸른아파트 1203호", [["윤서영", "본인"]], false, "", L).merged({"restrict": RESTRICT_NOTE})},
+				"asks": [{"q": "교부 제한 신청을 하셨네요.", "a": "네. 전 남편이 제 주소를 알아낼까 봐요. 본인은 뗄 수 있는 거 맞죠?"}],
+				"correct": "process",
+				"outcomes": {
+					"process": {"rep": 2, "result": "right", "mood": "happy", "flag": "seoyoung_served",
+						"say": "......고마워요. 이사 오고 처음으로 마음 놓고 서류를 떼 보네요."},
+					"reject": {"rep": -3, "result": "wrong", "mood": "sad",
+						"say": "......저 본인인데요? 제한은 남이 못 떼 가게 해 달라고 한 거예요.",
+						"warn": "최 팀장 메모: 교부 제한은 남이 떼 가는 걸 막는 거예요. 본인이 오면 떼 줘야 해요."},
+				},
+			}
+		"w2_donghun":
+			if not flags.get("envelope_refused", false) or flags.get("stalker_given", false):
+				return {}
+			var L: Dictionary = LOOKS["donghun"]
+			c = {
+				"name": "차동훈", "look": L, "mood": "happy",
+				"intro": ["또 뵙네요. 이번엔 위임장을 제대로 받아 왔습니다.", "(생년월일까지 꼼꼼히 채우고 인감도장까지 찍힌 위임장을 내민다. 이번엔 봉투가 없다)"],
+				"docs": [id_card("차동훈", "1984.06.09", "은행동 14-2", L, false, "2019.10.30"),
+					form("주민등록표 등본 교부 신청서", "윤서영", "1993.04.18", "차동훈", "형제"),
+					{"kind": "proxy", "grantor": "윤서영", "grantor_birth": "1993.04.18", "grantee": "차동훈", "purpose": "주민등록표 등본 발급", "seal": "인감"}],
+				"records": {"윤서영": record("1993.04.18", "햇살동 72-3 푸른아파트 1203호", [["윤서영", "본인"]], false, "", LOOKS["seoyoung"]).merged({"restrict": RESTRICT_NOTE}),
+					"차동훈": record("1984.06.09", "은행동 14-2", [["차동훈", "본인"]], true, "", L)},
+				"asks": [{"q": "위임장은 언제 받으셨어요?", "a": "어제요. 동생이랑 밥 먹으면서요. (웃는다) 걔가 요즘 이사 준비로 정신이 없거든요."}],
+				"correct": "reject", "reason": "교부 제한 대상의 등본을 남에게 발급",
+				"flaw": {"reason": "restrict", "label": "교부 제한 대상",
+					"pairs": [["rec:윤서영.restrict", "rule:교부 제한"], ["rec:윤서영.restrict", "form.subject"], ["rec:윤서영.restrict", "proxy.grantor"]],
+					"reply": "(웃음이 사라진다) 또 그 얘기예요? 가족이 떼 달라는데 왜 안 된다는 거예요?"},
+				"outcomes": {
+					"reject": {"rep": 1, "result": "right", "mood": "angry", "flag": "donghun_left",
+						"say": "......다음엔 변호사를 데리고 오죠. (문을 세게 닫고 나간다)"},
+					"guard": {"rep": 4, "result": "right", "mood": "angry", "flag": "stalker_caught", "time": 10,
+						"say": "(청원경찰이 팔을 잡자 발버둥 친다) 이거 놔! 나는 심부름만 하는 사람이라고!",
+						"note": "청원경찰이 차동훈을 붙잡아 경찰에 넘겼다.",
+						"event": "경찰 조사에서 차동훈에게 윤서영 씨 주소를 캐 달라고 한 사람이 전 남편이라는 게 드러났다. 전 남편에게 접근금지 명령이 내려졌다."},
+					"process": {"pen": 3, "result": "wrong", "mood": "happy", "flag": "stalker_given",
+						"say": "감사합니다. (서류를 받자마자 서둘러 나간다)",
+						"warn": "최 팀장 메모: 윤서영 씨는 교부 제한 대상이에요! 지난주에도 왔던 사람이잖아요."},
+				},
+			}
+		"w2_councilor":
+			var L: Dictionary = LOOKS["taesik"]
+			var favor := {"pen": 3, "result": "wrong", "mood": "happy", "flag": "councilor_favor",
+				"say": "그렇지, 이래야 일이 되지. 팀장한테 3번 창구 칭찬 좀 해 둘게요.",
+				"warn": "최 팀장 메모: ......구의원이라도 위임장 없는 대리 발급은 위반이에요. 인사 평가에 남을 거예요."}
+			var backed: bool = int(flags.get("_rep", 50)) >= 60
+			c = {
+				"name": "김태식", "look": L, "mood": "happy",
+				"intro": ["(번호표도 없이 창구 앞으로 성큼 들어선다) 수고 많아요. 나 김태식이오. 이 동네 구의원.",
+					"우리 보좌관 조카 등본 한 통이면 돼요. 위임장이니 뭐니 그런 건 됐고. 전화 한 통이면 될 일을 내가 직접 왔으니, 성의를 봐서 좀."]
+					+ (["장만식이 그러던데, 지난주엔 여기서 잘 해 줬다며?"] if flags.get("vip_favor", false) else []),
+				"docs": [id_card("김태식", "1958.12.05", "햇살동 1-1", L, false, "2018.07.07"),
+					form("주민등록표 등본 교부 신청서", "오승민", "1996.08.19", "김태식", "지인")],
+				"records": {"김태식": record("1958.12.05", "햇살동 1-1", [["김태식", "본인"]], true, "", L),
+					"오승민": record("1996.08.19", "햇살동 29-4", [["오승민", "본인"]], true, "", LOOKS["seungmin"])},
+				"correct": "reject", "reason": "위임장 없는 비세대원 대리 발급",
+				"flaw": {"reason": "proxy", "pairs": [["form.relation", "rule:대리 신청"], ["form.applicant", "rule:대리 신청"], ["form.applicant", "rec:오승민.members"]],
+					"reply": "허허, 이 사람 참 융통성 없네. 내가 누군지 몰라요?"},
+				"custom": [["cou_yes", "의원님이니까 떼 드린다"]],
+				"outcomes": {
+					"cou_yes": favor, "process": favor,
+					"reject": {"rep": 3, "result": "right", "mood": "angry", "flag": "councilor_refused",
+						"say": "(최 팀장이 뒤에서 다가와 옆에 선다) \"의원님, 저희 주무관이 규정대로 한 겁니다. 위임장 가져오시면 바로 떼 드릴게요.\" ......허, 두고 봅시다.",
+						"note": "최 팀장이 창구로 와서 편을 들어 줬다."} if backed else
+						{"stress": 15, "result": "right", "mood": "angry", "flag": "councilor_refused",
+						"say": "허, 이런 식이면 구청에 얘기 좀 해야겠네. 이름이 뭐요? (명찰을 한참 들여다보고 나간다)"},
+					"guard": {"rep": -5, "result": "wrong", "mood": "angry", "say": "청원경찰? 나한테? 허, 이거 재밌네.",
+						"warn": "최 팀장 메모: 구의원한테 청원경찰은... 반려면 충분했어요."},
+				},
+			}
+	if c.is_empty():
+		return c
+	c["id"] = id
+	c["story"] = true
+	if not c.has("phase"):
+		c["phase"] = "calm"
+	if not c.has("lookup"):
+		c["lookup"] = _lookup_names(c)
+	return c
+
+
+static func _lookup_names(c: Dictionary) -> Array:
+	var names: Array = []
+	for d in c.get("docs", []):
+		for k in ["subject", "applicant", "grantor", "deceased", "name"]:
+			if d.has(k) and not names.has(d[k]):
+				names.append(d[k])
+	return names
+
+
+# ─────────────────────────── 무작위 민원 ───────────────────────────
+
+static func make_routine(day: int, rng: RandomNumberGenerator, outage := false) -> Dictionary:
+	var pool := [["deungbon", 3], ["chobon", 2], ["move", 2], ["seal", 1], ["transfer", 4]]
+	if day >= 2:
+		pool += [["proxy_deungbon", 3], ["proxy_seal", 2]]
+	if day >= 6:
+		pool.append(["reissue", 2])
+	var kind: String = _weighted(pool, rng)
+	var c: Dictionary
+	if kind == "transfer":
+		c = _make_transfer(rng)
+	elif kind == "reissue":
+		c = _make_reissue(day, rng)
+	else:
+		# 전산이 필요한 신청은 오후에 원래대로 다시 오므로, 전산 장애와 상관없이 만든다
+		c = _make_ours(kind, day, rng, outage and not kind in ["seal", "proxy_deungbon", "proxy_seal"])
+	c["id"] = "routine_" + kind
+	c["story"] = false
+	c["phase"] = "calm"
+	if outage and kind != "transfer" and needs_db(c):
+		return _make_outage_wait(c)
+	if kind != "transfer" and day >= 2 and rng.randf() < 0.15:
+		_make_rude(c, rng)
+	return c
+
+
+## 전산 장애 중에 온 대리·인감·재발급 신청: '전산 장애'로 반려하면 오후에 원래 서류 그대로 다시 온다
+static func _make_outage_wait(base: Dictionary) -> Dictionary:
+	var c := base.duplicate(true)
+	for k in ["_valid", "needs_call", "guard_warn"]:
+		c.erase(k)
+	var pairs: Array = []
+	for d in c["docs"]:
+		if d["kind"] == "form":
+			pairs = [["form.relation", "rule:전산 장애"], ["form.applicant", "rule:전산 장애"], ["form.subject", "rule:전산 장애"]]
+		elif d["kind"] == "reissue":
+			pairs = [["reissue.name", "rule:전산 장애"], ["reissue.cause", "rule:전산 장애"]]
+	var alt: Array = []
+	if base.has("flaw"):
+		alt.append(base["flaw"]["reason"])
+	c["correct"] = "reject"
+	c["reason"] = "전산 장애 중에는 전산 확인이 필요한 신청을 받지 않음"
+	c["flaw"] = {"reason": "system", "alt": alt, "pairs": pairs, "reply": "아, 전산이 안 돼요? 그럼 점심 먹고 다시 올게요."}
+	c["reject_say"] = "알겠어요. 오후에 다시 올게요."
+	c["asks"] = []
+	c["_after"] = base
+	return c
+
+
+## 신분증을 잃어버렸거나 망가진 사람: 신분증이 없으니 전산 사진이 유일한 확인 수단이다
+static func _make_reissue(day: int, rng: RandomNumberGenerator) -> Dictionary:
+	var year := rng.randi_range(1945, 2006)
+	var name := _name(rng)
+	var birth := _birth(rng, year)
+	var look := _look(rng, year)
+	var addr := _addr(rng, OUR_DONG)
+	var cause: String = _pick(["분실", "분실", "훼손"], rng)
+	var doc := {"kind": "reissue", "name": name, "birth": birth, "addr": addr, "cause": cause}
+	var records := {name: record(birth, addr, [[name, "본인"]], rng.randf() < 0.7, "", look)}
+	var intro: Array = [_pick(["신분증을 잃어버려서 다시 만들러 왔어요.", "지갑째로 잃어버렸어요. 주민등록증 다시 만들 수 있죠?"], rng)] if cause == "분실" \
+		else ["주민등록증이 세탁기에 들어갔다 나와서 다 망가졌어요. 새로 만들어 주세요."]
+	var c := {"name": name, "look": look, "mood": "normal", "intro": intro, "again": intro[0], "records": records,
+		"correct": "process", "reason": "",
+		"asks": [{"q": "본인 확인할 만한 게 아무것도 없으세요?",
+			"a": "지갑째로 잃어버려서요... 얼굴 보시면 안 될까요?" if cause == "분실" else "이거라도... (반쯤 녹은 주민등록증을 보여 준다) 알아볼 수가 없죠?"}]}
+	var valid := {"docs": [doc.duplicate(true)], "records": records.duplicate(true)}
+	var p_bad: float = [0.25, 0.3, 0.35, 0.4, 0.4, 0.4, 0.42, 0.4, 0.45, 0.45][day - 1]
+	if rng.randf() < p_bad:
+		var bad: String = _pick(["name", "birth", "db_photo", "db_photo"], rng)
+		c["correct"] = "reject"
+		var pairs: Array = []
+		match bad:
+			"name":
+				var wrong := _mutate_name(name, rng)
+				doc["name"] = wrong
+				c["reason"] = "신청서 이름(%s)이 전산 기록과 다름" % wrong
+				pairs = [["reissue.name", "rec:%s.none" % wrong]]
+			"birth":
+				doc["birth"] = _mutate_birth(birth, rng)
+				c["reason"] = "신청서 생년월일이 전산 기록과 다름"
+				pairs = [["reissue.birth", "rec:%s.birth" % name]]
+			"db_photo":
+				records[name]["look"] = _other_look(look, rng)
+				c["correct"] = "guard"
+				c["reason"] = "전산 사진과 다른 얼굴로 남의 명의 신분증을 받으려 함"
+				c["guard_warn"] = "최 팀장 메모: 전산 사진과 얼굴이 달랐어요. 남의 명의로 신분증을 받으려던 사람이니 청원경찰을 불렀어야 해요."
+				pairs = [["rec:%s.photo" % name, "face"]]
+		c["flaw"] = {"reason": REASON_OF[bad], "pairs": pairs, "reply": _pick(FLAW_REPLIES[bad], rng)}
+		if bad == "db_photo":
+			c["flaw"]["label"] = "전산 사진과 다른 얼굴"
+		elif REASON_OF[bad] in FIXABLE:
+			c["_valid"] = valid
+	c["docs"] = [doc]
+	c["lookup"] = _lookup_names(c)
+	return c
+
+
+static func _weighted(pool: Array, rng: RandomNumberGenerator) -> String:
+	var total := 0
+	for p in pool:
+		total += p[1]
+	var r := rng.randi_range(1, total)
+	for p in pool:
+		r -= p[1]
+		if r <= 0:
+			return p[0]
+	return pool[0][0]
+
+
+static func _pick(arr: Array, rng: RandomNumberGenerator) -> Variant:
+	return arr[rng.randi_range(0, arr.size() - 1)]
+
+
+static func _name(rng: RandomNumberGenerator, surname := "") -> String:
+	while true:
+		var n: String = (surname if surname != "" else _pick(SURNAMES, rng)) + _pick(GIVEN, rng)
+		if not STORY_NAMES.has(n):
+			return n
+	return ""
+
+
+static func _birth(rng: RandomNumberGenerator, year: int) -> String:
+	return "%d.%02d.%02d" % [clampi(year, 1938, 2006), rng.randi_range(1, 12), rng.randi_range(1, 28)]
+
+
+static func _addr(rng: RandomNumberGenerator, dong: String) -> String:
+	var a := "%s %d-%d" % [dong, rng.randi_range(1, 80), rng.randi_range(1, 20)]
+	if rng.randf() < 0.4:
+		a += " %s %d호" % [_pick(["햇살빌라", "은하맨션", "푸른아파트", "다솜주택"], rng), rng.randi_range(1, 5) * 100 + rng.randi_range(1, 4)]
+	return a
+
+
+static func _look(rng: RandomNumberGenerator, year: int) -> Dictionary:
+	var fem := rng.randf() < 0.5
+	var age := 0 if year >= 1988 else (1 if year >= 1963 else 2)
+	var hair: int = _pick([3, 4], rng) if age == 2 else _pick([0, 0, 1, 1, 2, 5], rng)
+	var style: int = _pick([1, 2, 4], rng) if fem else _pick([0, 1, 3], rng)
+	if style == 3 and age == 0:
+		style = 0
+	return {"skin": rng.randi_range(0, 3), "hair": hair, "style": style, "glasses": rng.randf() < 0.3,
+		"age": age, "shape": rng.randi_range(0, 2), "shirt": rng.randi_range(0, 7), "img": _pick(CITIZENS[age], rng)}
+
+
+## 같은 사람으로 보이지 않을 만큼 다른 얼굴
+static func _other_look(l: Dictionary, rng: RandomNumberGenerator) -> Dictionary:
+	var o := l.duplicate()
+	o["shape"] = (int(l["shape"]) + rng.randi_range(1, 2)) % 3
+	o["skin"] = (int(l["skin"]) + rng.randi_range(1, 3)) % 4
+	o["style"] = (int(l["style"]) + rng.randi_range(1, 4)) % 5
+	if int(l["age"]) < 2:
+		o["hair"] = (int(l["hair"]) + rng.randi_range(1, 2)) % 3
+	o["glasses"] = not l["glasses"]
+	if l.has("img"):
+		var same_age: Array = CITIZENS[int(l["age"])].filter(func(x): return x != l["img"])
+		o["img"] = _pick(same_age, rng)
+	return o
+
+
+static func _mutate_name(n: String, rng: RandomNumberGenerator) -> String:
+	while true:
+		var m: String = n.left(n.length() - 1) + _pick(SWAP_SYLLABLES, rng)
+		if m != n:
+			return m
+	return n
+
+
+static func _mutate_birth(b: String, rng: RandomNumberGenerator) -> String:
+	var parts := b.split(".")
+	var d := int(parts[2])
+	var nd := d
+	while nd == d:
+		nd = rng.randi_range(1, 28)
+	return "%s.%s.%02d" % [parts[0], parts[1], nd]
+
+
+static func _make_ours(kind: String, day: int, rng: RandomNumberGenerator, outage := false) -> Dictionary:
+	var year := rng.randi_range(1945, 2004)
+	var me := {"name": _name(rng), "birth": _birth(rng, year), "look": _look(rng, year)}
+	var moving := kind == "move"
+	me["addr"] = _addr(rng, _pick(OTHER_DONGS, rng) if moving else OUR_DONG)
+	var subject := me
+	var relation := "본인"
+	var said := ""
+	var household := false
+	var proxy_kind := kind.begins_with("proxy")
+	var seal_kind := kind == "seal" or kind == "proxy_seal"
+	if proxy_kind:
+		var rel: Array = _pick(RELATIONS, rng)
+		relation = rel[0]
+		said = rel[1]
+		var sy := year + int(rel[2]) + rng.randi_range(-3, 3)
+		var surname: String = me["name"].left(1) if relation != "배우자" else ""
+		var sname := _name(rng, surname)
+		while sname == me["name"]:
+			sname = _name(rng, surname)
+		subject = {"name": sname, "birth": _birth(rng, sy), "addr": _addr(rng, OUR_DONG), "look": _look(rng, sy)}
+		household = rng.randf() < 0.4
+		if household:
+			subject["addr"] = me["addr"]
+	# 전산 기록
+	var records := {}
+	if household:
+		var fam := [[subject["name"], "본인"], [me["name"], relation]]
+		records[subject["name"]] = record(subject["birth"], subject["addr"], fam)
+		records[me["name"]] = record(me["birth"], me["addr"], fam)
+	else:
+		records[me["name"]] = record(me["birth"], me["addr"], [[me["name"], "본인"]], rng.randf() < 0.7)
+		if proxy_kind:
+			records[subject["name"]] = record(subject["birth"], subject["addr"], [[subject["name"], "본인"]])
+	if seal_kind:
+		records[subject["name"]]["seal"] = true
+	records[me["name"]]["look"] = me["look"]
+	if proxy_kind:
+		records[subject["name"]]["look"] = subject["look"]
+		if seal_kind:
+			records[subject["name"]]["phone"] = "010-%04d-%04d" % [rng.randi_range(1000, 9999), rng.randi_range(1000, 9999)]
+	# 서류
+	var license := rng.randf() < 0.3
+	var id_date := "20%02d.%02d.%02d" % [rng.randi_range(27, 34), rng.randi_range(1, 12), rng.randi_range(1, 28)] if license \
+		else "20%02d.%02d.%02d" % [rng.randi_range(10, 25), rng.randi_range(1, 12), rng.randi_range(1, 28)]
+	var id_doc := id_card(me["name"], me["birth"], me["addr"], me["look"], license, id_date)
+	var titles := {"deungbon": "주민등록표 등본 교부 신청서", "chobon": "주민등록표 초본 교부 신청서", "seal": "인감증명서 발급 신청서",
+		"proxy_deungbon": "주민등록표 등본 교부 신청서", "proxy_seal": "인감증명서 발급 신청서"}
+	var main_doc: Dictionary
+	var new_addr := ""
+	if moving:
+		new_addr = _addr(rng, OUR_DONG)
+		main_doc = {"kind": "move", "name": me["name"], "birth": me["birth"], "old_addr": me["addr"], "new_addr": new_addr}
+	else:
+		main_doc = form(titles[kind], subject["name"], subject["birth"], me["name"], relation)
+	var proxy: Dictionary = {}
+	if proxy_kind and (not household or seal_kind or rng.randf() < 0.3):
+		proxy = {"kind": "proxy", "grantor": subject["name"], "grantor_birth": subject["birth"], "grantee": me["name"],
+			"purpose": "인감증명서 발급" if seal_kind else "주민등록표 등본 발급",
+			"seal": "인감" if seal_kind else _pick(["일반", "인감"], rng)}
+	# 말
+	var intro: Array = []
+	match kind:
+		"deungbon": intro = [_pick(["주민등록등본 한 통 떼 주세요.", "등본 하나 뗄게요. %s 내야 해서요." % _pick(PURPOSES, rng)], rng)]
+		"chobon": intro = [_pick(["초본 한 통 부탁드려요.", "주민등록초본 떼러 왔어요. %s 내야 한대서요." % _pick(PURPOSES, rng)], rng)]
+		"seal": intro = ["인감증명서 한 통 떼러 왔어요. %s" % _pick(SEAL_PURPOSES, rng)]
+		"move": intro = [_pick(["이사 와서 전입신고 하러 왔어요.", "전입신고요. 지난주에 이사했어요."], rng)]
+		"proxy_deungbon": intro = ["%s 등본 좀 떼 주세요. %s" % [said, _pick(PROXY_EXCUSES, rng)]]
+		"proxy_seal": intro = ["%s 인감증명서 좀 떼 주세요. %s" % [said, _pick(PROXY_EXCUSES, rng)]]
+	var c := {"name": me["name"], "look": me["look"], "mood": "normal", "intro": intro, "again": intro[0],
+		"records": records, "correct": "process", "reason": "",
+		"asks": [{"q": "신분증 사진이 본인 맞으세요?", "a": _pick(["네, 저 맞아요.", "네. 사진이 좀 잘 나왔죠?"], rng)}]}
+	# 틀린 곳을 심기 전 멀쩡한 상태 (고쳐서 다시 올 때 쓴다)
+	var valid := {"docs": [id_doc.duplicate(true), main_doc.duplicate(true)], "records": records.duplicate(true)}
+	if not proxy.is_empty():
+		valid["docs"].append(proxy.duplicate(true))
+	# 틀린 곳 심기
+	if kind == "proxy_seal" and day >= 7:
+		c["needs_call"] = true
+	var p_bad: float = [0.25, 0.3, 0.35, 0.4, 0.4, 0.4, 0.42, 0.4, 0.45, 0.45][day - 1]
+	if rng.randf() < p_bad:
+		var opts := ["name", "birth", "photo"]
+		if day >= 6 and not outage:
+			opts.append("impostor")
+		if day >= 3:
+			opts.append("expired")
+		if moving:
+			opts += ["outside", "outside"]
+		if kind == "proxy_deungbon" and not household:
+			opts += ["no_proxy", "no_seal"]
+		if kind == "proxy_seal":
+			opts += ["no_proxy", "general_seal", "general_seal"]
+		if seal_kind and day >= 3:
+			opts.append("unreg")
+		var bad: String = _pick(opts, rng)
+		c["correct"] = "reject"
+		var pairs: Array = []
+		var sname: String = subject["name"]
+		match bad:
+			"name":
+				var who: String = main_doc["name"] if moving else main_doc["subject"]
+				var wrong := _mutate_name(who, rng)
+				if moving:
+					main_doc["name"] = wrong
+				else:
+					main_doc["subject"] = wrong
+					if not proxy_kind:
+						main_doc["applicant"] = wrong
+				c["reason"] = "신청서 이름(%s)이 전산 기록과 다름" % wrong
+				if moving:
+					pairs = [["move.name", "id.name"], ["move.name", "rec:%s.none" % wrong]]
+				elif proxy_kind:
+					pairs = [["form.subject", "rec:%s.none" % wrong]]
+					if not proxy.is_empty():
+						pairs.append(["form.subject", "proxy.grantor"])
+				else:
+					pairs = [["form.subject", "id.name"], ["form.applicant", "id.name"], ["form.subject", "rec:%s.none" % wrong]]
+			"birth":
+				if moving:
+					main_doc["birth"] = _mutate_birth(main_doc["birth"], rng)
+				else:
+					main_doc["subject_birth"] = _mutate_birth(main_doc["subject_birth"], rng)
+				c["reason"] = "신청서 생년월일이 전산 기록과 다름"
+				if moving:
+					pairs = [["move.birth", "id.birth"], ["move.birth", "rec:%s.birth" % me["name"]]]
+				elif proxy_kind:
+					pairs = [["form.subject_birth", "rec:%s.birth" % sname]]
+					if not proxy.is_empty():
+						pairs.append(["form.subject_birth", "proxy.grantor_birth"])
+				else:
+					pairs = [["form.subject_birth", "id.birth"], ["form.subject_birth", "rec:%s.birth" % sname]]
+			"photo":
+				# 남의 신분증을 빌려 옴: 신분증 사진과 전산 사진은 주인 얼굴, 창구 앞 얼굴만 다르다
+				id_doc["look"] = _other_look(me["look"], rng)
+				records[me["name"]]["look"] = id_doc["look"]
+				c["reason"] = "신분증 사진이 창구 앞 사람과 다른 얼굴"
+				pairs = [["id.look", "face"]]
+				if day >= 6 and not outage:
+					pairs.append(["rec:%s.photo" % me["name"], "face"])
+				c["asks"] = [{"q": "신분증 사진이 본인 맞으세요?", "a": _pick(["아, 그거 옛날 사진이에요. 살이 좀 빠졌거든요.", "......네, 저 맞는데요. 왜요?"], rng)}]
+			"expired":
+				id_doc["type"] = "운전면허증"
+				id_doc["date"] = "2026.%02d.%02d" % [rng.randi_range(1, 9), rng.randi_range(1, 28)]
+				c["reason"] = "유효기간이 지난 운전면허증 (%s)" % id_doc["date"]
+				pairs = [["id.date", "today"], ["id.date", "rule:운전면허증 유효기간"]]
+			"outside":
+				main_doc["new_addr"] = _addr(rng, _pick(OTHER_DONGS, rng))
+				c["reason"] = "새 주소가 햇살동이 아님"
+				pairs = [["move.new_addr", "rule:전입신고"]]
+			"no_proxy":
+				proxy = {}
+				c["reason"] = "대리 신청인데 위임장이 없음"
+				var rule := "rule:인감증명 대리 발급" if seal_kind else "rule:대리 신청"
+				pairs = [["form.relation", rule], ["form.applicant", rule]]
+				if not seal_kind:
+					pairs.append(["form.applicant", "rec:%s.members" % sname])
+			"no_seal":
+				proxy["seal"] = "없음"
+				c["reason"] = "위임장에 도장이 없음"
+				pairs = [["proxy.seal", "rule:대리 신청"]]
+			"general_seal":
+				proxy["seal"] = "일반"
+				c["reason"] = "인감증명 위임장에 인감도장이 아닌 일반 도장"
+				pairs = [["proxy.seal", "rule:인감증명 대리 발급"]]
+			"unreg":
+				records[subject["name"]]["seal"] = false
+				c["reason"] = "전산에 인감이 등록되지 않음"
+				pairs = [["rec:%s.seal" % sname, "rule:인감 등록 여부"]]
+			"impostor":
+				# 위조 신분증: 사진은 자기 얼굴로 바꿨지만 전산 사진은 진짜 주인 얼굴이다
+				records[me["name"]]["look"] = _other_look(me["look"], rng)
+				c["correct"] = "guard"
+				c["reason"] = "위조 신분증 (전산 사진과 다른 얼굴)"
+				c["guard_warn"] = "최 팀장 메모: 신분증 사진은 본인인데 전산 사진이 달랐어요. 위조 신분증이니 청원경찰을 불렀어야 해요."
+				pairs = [["rec:%s.photo" % me["name"], "face"], ["rec:%s.photo" % me["name"], "id.look"]]
+		if outage:
+			pairs = pairs.filter(func(pr): return not String(pr[0]).begins_with("rec:") and not String(pr[1]).begins_with("rec:"))
+		c["flaw"] = {"reason": REASON_OF[bad], "pairs": pairs, "reply": _pick(FLAW_REPLIES[bad], rng)}
+		if bad == "impostor":
+			c["flaw"]["label"] = "위조 신분증 (전산 사진과 다른 얼굴)"
+		elif REASON_OF[bad] in FIXABLE:
+			c["_valid"] = valid
+	# 5일째에는 분실 인감 위임장도 가끔 섞인다
+	if kind == "proxy_seal" and day >= 5 and c["correct"] == "process" and rng.randf() < 0.2:
+		records[subject["name"]]["lost"] = "2026.10.%02d 인감 분실 신고 (본인 방문)" % rng.randi_range(1, 15)
+		c["correct"] = "guard"
+		c["reason"] = "분실 신고된 인감으로 만든 위임장"
+		var sn: String = subject["name"]
+		c["flaw"] = {"reason": "proxy", "label": "분실 신고된 인감", "reply": _pick(FLAW_REPLIES["lost"], rng),
+			"pairs": [["rec:%s.lost" % sn, "proxy.seal"], ["rec:%s.lost" % sn, "rule:분실 인감"], ["rec:%s.lost" % sn, "proxy.grantor"]]}
+	# 2주차 화요일부터는 위임자가 전화로 부인하는 위조 위임장도 섞인다
+	if kind == "proxy_seal" and day >= 7 and c["correct"] == "process" and rng.randf() < 0.25:
+		records[subject["name"]]["phone_denies"] = true
+		c["correct"] = "guard"
+		c["reason"] = "위임자가 위임한 적 없다고 한 위조 위임장"
+		c["guard_warn"] = "최 팀장 메모: 위임자 확인 전화를 했으면 위조 위임장인 걸 알았을 거예요. 붙잡아 뒀어야 해요."
+		c["flaw"] = {"reason": "proxy", "via": "phone", "label": "위임자가 위임한 적 없다고 함", "pairs": [],
+			"reply": _pick(FLAW_REPLIES["forged"], rng)}
+	var docs := [id_doc, main_doc]
+	if not proxy.is_empty():
+		docs.append(proxy)
+	c["docs"] = docs
+	c["lookup"] = _lookup_names(c)
+	return c
+
+
+static func _make_transfer(rng: RandomNumberGenerator) -> Dictionary:
+	var t: Array = _pick(TRANSFERS, rng)
+	var year := rng.randi_range(1948, 2004)
+	return {"name": _name(rng), "look": _look(rng, year), "mood": "normal", "intro": t[1].duplicate(), "again": t[1][0],
+		"docs": [], "records": {}, "lookup": [], "correct": "transfer:" + t[0], "reason": ""}
+
+
+## 2번 창구 노 주무관이 슬쩍 넘기는 소란 민원인
+static func make_dumped(day: int, rng: RandomNumberGenerator) -> Dictionary:
+	var c := _make_ours(_pick(["deungbon", "chobon", "seal"], rng), day, rng)
+	c["id"] = "noh_dump"
+	c["story"] = false
+	c["phase"] = "calm"
+	_make_rude(c, rng)
+	c["dumped"] = true
+	c["intro"] = ["(2번 창구 노 주무관이 번호표를 3번으로 슬쩍 넘기며 눈을 찡긋한다. \"이분은 3번에서 봐 드릴 거예요~\")"] + c["intro"]
+	c["custom"] = [["noh_back", "2번 창구로 돌려보낸다"]]
+	c["outcomes"] = {"noh_back": NOH_BACK}
+	c["ignore"]["then"]["outcomes"] = {"noh_back": NOH_BACK}
+	return c
+
+
+## 서류를 내밀기 전에 한바탕 쏟아내는 민원인으로 바꾼다
+static func _make_rude(c: Dictionary, rng: RandomNumberGenerator) -> void:
+	var calm := {"mood": "normal", "phase": "calm", "intro": c["intro"], "docs": c["docs"], "outcomes": {}}
+	c["intro"] = [_pick(RANTS, rng)]
+	c["mood"] = "angry"
+	c["phase"] = "hostile"
+	c["docs_after"] = true
+	c["ignore"] = {"lines": ["......", "(한숨을 크게 쉰다) 아, 됐고요. 빨리 해 주세요."], "stress": 3, "result": "calm", "then": calm}
+	c["docs"] = []
+
+
+# ─────────────────────────── 판정 ───────────────────────────
+
+static func find_flaw(c: Dictionary, a: String, b: String) -> Dictionary:
+	var f: Dictionary = c.get("flaw", {})
+	for p in f.get("pairs", []):
+		if (p[0] == a and p[1] == b) or (p[0] == b and p[1] == a):
+			return f
+	return {}
+
+
+static func resolve(c: Dictionary, action: String) -> Dictionary:
+	if action.begins_with("reject:"):
+		return _resolve_reject(c, action.substr(7))
+	if action == "sos":
+		return SOS.duplicate()
+	if action == "process" and c.get("needs_call", false) and not c.get("_called", false) and c.get("correct") == "process":
+		return {"pen": 1, "stress": 3, "result": "wrong", "mood": "happy", "say": THANKS[randi() % THANKS.size()],
+			"warn": "최 팀장 메모: 인감증명 대리 발급은 위임자 확인 전화부터 해야 해요. 규정이에요."}
+	var ov: Dictionary = c.get("outcomes", {})
+	var o: Dictionary = ov[action].duplicate() if ov.has(action) else _default(c, action)
+	if action.begins_with("transfer:") and not ov.has(action):
+		# 이관하면 그 부서와의 관계가 움직인다
+		o["dept"] = {action.substr(9): 5 if action == c.get("correct") else -6}
+	var res: String = o.get("result", "neutral")
+	if not o.has("flag"):
+		if res == "right" and c.has("win_flag"):
+			o["flag"] = c["win_flag"]
+			if c.has("win_event") and not o.has("event"):
+				o["event"] = c["win_event"]
+		elif res == "wrong" and not o.get("requeue", false) and c.has("fail_flag"):
+			o["flag"] = c["fail_flag"]
+			if c.has("fail_event") and not o.has("event"):
+				o["event"] = c["fail_event"]
+	return o
+
+
+static func _resolve_reject(c: Dictionary, reason: String) -> Dictionary:
+	var o := resolve(c, "reject")
+	if c.get("correct") != "reject":
+		return o
+	var want: String = c.get("flaw", {}).get("reason", "")
+	if reason == "system" and want == "system":
+		o["after"] = true   # 오후에 원래 서류로 다시 온다
+	if reason != want and not reason in c.get("flaw", {}).get("alt", []):
+		o["rep"] = int(o.get("rep", 0)) - 2
+		o["warn"] = "최 팀장 메모: 반려는 맞는데 사유가 틀렸어요. 맞는 사유는 '%s'예요." % REASONS.get(want, "?")
+		if c.get("story", false):
+			return o
+		o["result"] = "wrong"
+		o["mood"] = "angry"
+		if c.get("returned_reason", false):
+			o["rep"] = -3
+			o["say"] = "또 다른 이유예요? 됐어요, 그냥 안 할래요."
+			o["event"] = "%s 씨가 반려 사유를 두 번이나 다르게 들었다며 민원을 넣었다." % c.get("name", "민원인")
+		else:
+			o["requeue_reason"] = REASONS[reason]
+			o["say"] = "'%s' 때문이라고요? ......일단 다시 알아보고 올게요." % REASONS[reason]
+	elif not c.get("_found", false):
+		# 무엇이 틀렸는지 짚어 주지 않고 반려하면 한마디 더 듣는다
+		o["stress"] = int(o.get("stress", 0)) + 2
+		if not c.get("story", false):
+			o["say"] = "뭐가 문제라는 건지... ......알겠어요, 다시 알아볼게요."
+	return o
+
+
+static func _default(c: Dictionary, action: String) -> Dictionary:
+	var correct: String = c.get("correct", "")
+	var back: bool = c.get("returned", false)
+	if action == correct:
+		var o := {"rep": 0 if back else 1, "result": "right", "mood": "happy", "say": c.get("thanks", "")}
+		if correct == "reject":
+			o["mood"] = "sad"
+			o["say"] = c.get("reject_say", REJECT_OK[randi() % REJECT_OK.size()])
+		elif correct.begins_with("transfer:") and o["say"] == "":
+			var d: Dictionary = DEPTS[correct.substr(9)]
+			o["say"] = "%s %s요? 알겠어요, 가 볼게요." % [d["where"], d["name"]]
+			o["mood"] = "normal"
+		elif correct == "guard":
+			o["mood"] = "angry"
+			o["say"] = "(청원경찰에게 붙잡힌다) 이거 놔요!"
+			o["note"] = "청원경찰이 사기 미수범을 붙잡았다."
+			o["rep"] = 4
+		if o["say"] == "":
+			o["say"] = THANKS[randi() % THANKS.size()]
+		return o
+	match action:
+		"process":
+			return {"pen": 1, "stress": 5, "result": "wrong", "mood": "happy", "say": THANKS[randi() % THANKS.size()],
+				"warn": "최 팀장 메모: 방금 건은 떼 주면 안 되는 서류였어요. (%s)" % c.get("reason", "규정 위반")}
+		"reject":
+			if correct == "process":
+				return {"rep": -3, "stress": 3, "result": "wrong", "mood": "angry", "say": REJECT_BAD[randi() % REJECT_BAD.size()],
+					"warn": "최 팀장 메모: 방금 서류는 문제가 없었어요. 반려할 이유가 없었어요."}
+			if correct == "guard":
+				return {"result": "neutral", "mood": "normal", "say": "......네. (서둘러 나간다)",
+					"warn": c.get("guard_warn", "최 팀장 메모: 분실 신고된 인감이었어요. 돌려보내지 말고 청원경찰을 불렀어야 해요.")}
+			return {"rep": -2, "result": "wrong", "mood": "angry", "say": "여기서 안 되면 어디로 가라는 거예요? 됐어요.",
+				"warn": "최 팀장 메모: 우리 창구 일이 아니면 반려하지 말고 담당 부서로 이관해 주세요."}
+		"eject":
+			return {"rep": -5, "result": "wrong", "mood": "angry", "say": "......지금 저보고 나가라는 거예요? 민원 넣을게요.",
+				"warn": "최 팀장 메모: 멀쩡한 민원인을 내보내면 안 돼요. 민원이 들어올 거예요."}
+		"guard":
+			return {"rep": -7, "result": "wrong", "mood": "angry", "time": 10, "say": "제가 뭘 했다고 청원경찰을 불러요?!",
+				"warn": "최 팀장 메모: 과잉 대응이에요. 청원경찰은 위험할 때만 불러요."}
+		"ignore_end":
+			return {"rep": -3, "result": "wrong", "mood": "angry", "say": "됐어요. 사람을 무시하는 것도 아니고."}
+	if action.begins_with("transfer:"):
+		var d: Dictionary = DEPTS[action.substr(9)]
+		if back:
+			return {"rep": -4, "result": "wrong", "mood": "angry", "say": "또요? 이번엔 %s요? 됐어요. 민원 넣을 거예요." % d["name"],
+				"event": "%s 씨가 부서를 두 번이나 잘못 안내받았다며 민원을 넣었다." % c.get("name", "민원인")}
+		return {"rep": -2, "result": "wrong", "mood": "normal", "requeue": true, "sent_to": d["name"],
+			"say": "%s %s요? 알겠어요, 가 볼게요." % [d["where"], d["name"]]}
+	return {"result": "neutral"}

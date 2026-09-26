@@ -1,0 +1,275 @@
+class_name DocView
+extends RefCounted
+## 서류와 전산 기록을 종이 카드로 만든다.
+## pick이 주어지면 각 칸을 누를 수 있다(지적하기). pick(fid, node, ev) — ev는 "click", "enter", "exit".
+
+const INK := Color("2b2723")
+const MUTED := Color("4f473e")
+const BOLD: Font = preload("res://assets/fonts/Pretendard-SemiBold.woff2")
+const PIXEL: Font = preload("res://assets/fonts/Mulmaru.woff2")
+const PAPER := Color("f3eee2")
+const RED := Color("c0392b")
+
+
+static func make(doc: Dictionary, pick := Callable()) -> Control:
+	var k: String = doc["kind"]
+	match k:
+		"id":
+			return _id_card(doc, pick)
+		"form":
+			return _paper(doc["title"], _rows(k, doc, [["subject", "대상자"], ["subject_birth", "대상자 생년월일"],
+				["applicant", "신청인"], ["relation", "대상자와의 관계"]], pick))
+		"move":
+			return _paper("전입신고서", _rows(k, doc, [["name", "성명"], ["birth", "생년월일"],
+				["old_addr", "이전 주소"], ["new_addr", "새 주소"]], pick))
+		"proxy":
+			return _paper("위임장", _rows(k, doc, [["grantor", "위임하는 사람"], ["grantor_birth", "생년월일"],
+				["grantee", "위임받는 사람"], ["purpose", "맡기는 일"]], pick), _wrap(_seal_row(doc["grantor"], doc["seal"]), "proxy.seal", pick))
+		"death_form":
+			return _paper("사망신고서", _rows(k, doc, [["deceased", "사망자"], ["deceased_birth", "사망자 생년월일"],
+				["date", "사망 일자"], ["reporter", "신고인"], ["relation", "사망자와의 관계"]], pick))
+		"reissue":
+			return _paper("주민등록증 재발급 신청서", _rows(k, doc, [["name", "성명"], ["birth", "생년월일"],
+				["addr", "주소"], ["cause", "재발급 사유"]], pick))
+		"death_cert":
+			return _paper("사망진단서", _rows(k, doc, [["deceased", "사망자"], ["deceased_birth", "생년월일"],
+				["date", "사망 일자"], ["place", "발행 기관"]], pick))
+	var rows: Array = []
+	var i := 0
+	for r in doc.get("rows", []):
+		rows.append(_wrap(_row(r[0], r[1]), "paper.%d" % i, pick))
+		i += 1
+	return _paper(doc.get("title", "서류"), rows)
+
+
+static func record_card(name: String, rec: Variant, pick := Callable(), show_photo := false) -> Control:
+	var bg := Color("e6edf2")
+	var pre := "rec:%s." % name
+	if rec == null:
+		return _paper("전산 조회: " + name, [_wrap(_row("결과", "조회되는 주민이 없습니다."), pre + "none", pick)], null, bg)
+	var members: Array = rec["members"]
+	var others: Array = []
+	for m in members.slice(1):
+		others.append("%s(%s)" % [m[0], m[1]])
+	var rows: Array = []
+	if show_photo and rec.has("look"):
+		var ph := photo(rec["look"], Vector2(72, 88))
+		var line := HBoxContainer.new()
+		line.mouse_filter = Control.MOUSE_FILTER_IGNORE
+		var k := _label("전산 사진", 15, MUTED)
+		k.custom_minimum_size = Vector2(112, 0)
+		line.add_child(k)
+		line.add_child(_wrap(ph, pre + "photo", pick))
+		rows.append(line)
+	rows += [
+		_wrap(_row("생년월일", rec["birth"]), pre + "birth", pick),
+		_wrap(_row("주소", rec["addr"]), pre + "addr", pick),
+		_wrap(_row("세대주", members[0][0]), pre + "head", pick),
+		_wrap(_row("세대원", ", ".join(PackedStringArray(others)) if not others.is_empty() else "없음"), pre + "members", pick),
+		_wrap(_row("인감 등록", "등록됨" if rec["seal"] else "미등록"), pre + "seal", pick),
+	]
+	if rec.has("phone"):
+		rows.append(_wrap(_row("연락처", rec["phone"]), pre + "phone", pick))
+	if String(rec.get("lost", "")) != "":
+		rows.append(_wrap(_warn_label("[주의] " + rec["lost"]), pre + "lost", pick))
+	if String(rec.get("restrict", "")) != "":
+		rows.append(_wrap(_warn_label("[주의] " + rec["restrict"]), pre + "restrict", pick))
+	return _paper("전산 조회: " + name, rows, null, bg)
+
+
+## 누를 수 있는 칸으로 감싼다. pick이 없으면 그대로 돌려준다.
+static func _wrap(inner: Control, fid: String, pick: Callable) -> Control:
+	if not pick.is_valid():
+		return inner
+	var p := PanelContainer.new()
+	p.add_theme_stylebox_override("panel", StyleBoxEmpty.new())
+	p.set_meta("fid", fid)
+	p.mouse_filter = Control.MOUSE_FILTER_PASS   # 아래 종이(Paper)도 눌림을 받아 끌 수 있게
+	p.mouse_default_cursor_shape = Control.CURSOR_POINTING_HAND
+	p.gui_input.connect(func(e: InputEvent):
+		if e is InputEventMouseButton and e.pressed and e.button_index == MOUSE_BUTTON_LEFT:
+			pick.call(fid, p, "click"))
+	p.mouse_entered.connect(func(): pick.call(fid, p, "enter"))
+	p.mouse_exited.connect(func(): pick.call(fid, p, "exit"))
+	p.add_child(inner)
+	return p
+
+
+static func pickable(inner: Control, fid: String, pick: Callable) -> Control:
+	return _wrap(inner, fid, pick)
+
+
+## 처리·반려 도장
+static func stamp(text: String) -> Control:
+	var p := PanelContainer.new()
+	var sb := StyleBoxFlat.new()
+	sb.bg_color = Color(1, 1, 1, 0.12)
+	sb.border_color = RED
+	sb.set_border_width_all(5)
+	sb.set_corner_radius_all(8)
+	sb.content_margin_left = 22
+	sb.content_margin_right = 22
+	sb.content_margin_top = 6
+	sb.content_margin_bottom = 6
+	p.add_theme_stylebox_override("panel", sb)
+	var l := _label(text, 36, RED)
+	l.add_theme_font_override("font", PIXEL)
+	p.add_child(l)
+	p.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	return p
+
+
+## 이관할 때 책상에 붙이는 쪽지
+static func note(text: String) -> Control:
+	var p := PanelContainer.new()
+	var sb := StyleBoxFlat.new()
+	sb.bg_color = Color("f7e27a")
+	sb.set_content_margin_all(12)
+	sb.shadow_color = Color(0, 0, 0, 0.3)
+	sb.shadow_size = 4
+	p.add_theme_stylebox_override("panel", sb)
+	p.add_child(_label(text, 20, INK))
+	p.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	return p
+
+
+static func _rows(kind: String, doc: Dictionary, spec: Array, pick: Callable) -> Array:
+	var out: Array = []
+	for s in spec:
+		out.append(_wrap(_row(s[1], doc[s[0]]), "%s.%s" % [kind, s[0]], pick))
+	return out
+
+
+static func _id_card(doc: Dictionary, pick: Callable) -> Control:
+	var license: bool = doc["type"] == "운전면허증"
+	var p := _panel(Color("f0e6cc") if license else Color("dde8f0"), Color("9a8b6a") if license else Color("7e97aa"))
+	var v := VBoxContainer.new()
+	v.add_theme_constant_override("separation", 6)
+	p.add_child(v)
+	var head := _label(doc["type"], 19, Color("6a4b1c") if license else Color("274a66"))
+	head.add_theme_font_override("font", BOLD)
+	v.add_child(head)
+	var hb := HBoxContainer.new()
+	hb.add_theme_constant_override("separation", 10)
+	v.add_child(hb)
+	hb.add_child(_wrap(photo(doc["look"], Vector2(86, 106)), "id.look", pick))
+	var rows := VBoxContainer.new()
+	rows.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+	hb.add_child(rows)
+	rows.add_child(_wrap(_row("이름", doc["name"], 64), "id.name", pick))
+	rows.add_child(_wrap(_row("생년월일", doc["birth"], 64), "id.birth", pick))
+	rows.add_child(_wrap(_row("주소", doc["addr"], 64), "id.addr", pick))
+	rows.add_child(_wrap(_row("유효기간" if license else "발급일", doc["date"], 64), "id.date", pick))
+	return p
+
+
+## 증명사진. 창구의 얼굴과 같은 픽셀 크기로 보이도록 절반 해상도로 그렸다가 키운다.
+static func photo(look: Dictionary, sz: Vector2) -> Control:
+	var box := SubViewportContainer.new()
+	box.stretch = true
+	box.stretch_shrink = 2
+	box.custom_minimum_size = sz
+	box.texture_filter = CanvasItem.TEXTURE_FILTER_NEAREST
+	box.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	var vp := SubViewport.new()
+	vp.transparent_bg = true
+	box.add_child(vp)
+	var ph := Portrait.new()
+	ph.photo = true
+	ph.set_anchors_preset(Control.PRESET_FULL_RECT)
+	ph.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	ph.set_face(look)
+	vp.add_child(ph)
+	return box
+
+
+static func _seal_row(who: String, seal: String) -> Control:
+	var hb := HBoxContainer.new()
+	hb.add_theme_constant_override("separation", 10)
+	hb.alignment = BoxContainer.ALIGNMENT_END
+	hb.add_child(_label("위임하는 사람  %s" % who, 15, INK))
+	if seal == "없음":
+		hb.add_child(_label("(날인 없음)", 15, MUTED))
+		return hb
+	var st := PanelContainer.new()
+	var sb := StyleBoxFlat.new()
+	sb.bg_color = Color(0, 0, 0, 0)
+	sb.border_color = RED
+	sb.set_border_width_all(3)
+	sb.set_corner_radius_all(24 if seal == "인감" else 3)
+	sb.set_content_margin_all(6)
+	st.add_theme_stylebox_override("panel", sb)
+	st.add_child(_label("인감도장" if seal == "인감" else "일반 도장", 14, RED))
+	st.rotation_degrees = -6
+	st.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	hb.add_child(st)
+	return hb
+
+
+static func _paper(title: String, rows: Array, footer: Control = null, bg := PAPER) -> Control:
+	var p := _panel(bg, Color("b9ae98"))
+	var v := VBoxContainer.new()
+	v.add_theme_constant_override("separation", 3)
+	p.add_child(v)
+	var t := _label(title, 19, INK)
+	t.add_theme_font_override("font", BOLD)
+	t.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
+	v.add_child(t)
+	var line := ColorRect.new()
+	line.color = Color("b9ae98")
+	line.custom_minimum_size = Vector2(0, 2)
+	line.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	v.add_child(line)
+	for r in rows:
+		v.add_child(r)
+	if footer:
+		v.add_child(footer)
+	return p
+
+
+static func _panel(bg: Color, border: Color) -> PanelContainer:
+	var p := PanelContainer.new()
+	var sb := StyleBoxFlat.new()
+	sb.bg_color = bg
+	sb.border_color = border
+	sb.set_border_width_all(2)
+	sb.set_corner_radius_all(5)
+	sb.set_content_margin_all(12)
+	sb.shadow_color = Color(0, 0, 0, 0.35)
+	sb.shadow_size = 4
+	sb.shadow_offset = Vector2(2, 3)
+	p.add_theme_stylebox_override("panel", sb)
+	p.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+	p.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	return p
+
+
+static func _row(key: String, value: String, key_width := 112) -> Control:
+	var hb := HBoxContainer.new()
+	hb.add_theme_constant_override("separation", 8)
+	hb.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	var k := _label(key, 15, MUTED)
+	k.custom_minimum_size = Vector2(key_width, 0)
+	hb.add_child(k)
+	var v := _label(value, 18, INK)
+	v.add_theme_font_override("font", BOLD)
+	v.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+	v.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
+	hb.add_child(v)
+	return hb
+
+
+static func _warn_label(text: String) -> Label:
+	var l := _label(text, 16, RED)
+	l.add_theme_font_override("font", BOLD)
+	l.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
+	return l
+
+
+static func _label(text: String, font_size: int, color: Color) -> Label:
+	var l := Label.new()
+	l.text = text
+	l.add_theme_font_size_override("font_size", font_size)
+	l.add_theme_color_override("font_color", color)
+	l.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	return l

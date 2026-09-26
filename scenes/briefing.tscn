@@ -1,0 +1,61 @@
+[gd_scene load_steps=3 format=3]
+
+[ext_resource type="Script" path="res://scripts/briefing.gd" id="1"]
+[ext_resource type="FontFile" path="res://assets/fonts/Mulmaru.woff2" id="font_pix"]
+
+[node name="Briefing" type="Control"]
+layout_mode = 3
+anchors_preset = 15
+anchor_right = 1.0
+anchor_bottom = 1.0
+grow_horizontal = 2
+grow_vertical = 2
+script = ExtResource("1")
+
+[node name="BG" type="ColorRect" parent="."]
+layout_mode = 1
+anchors_preset = 15
+anchor_right = 1.0
+anchor_bottom = 1.0
+color = Color(0.17, 0.18, 0.2, 1)
+
+[node name="Paper" type="PanelContainer" parent="."]
+unique_name_in_owner = true
+layout_mode = 0
+offset_left = 220.0
+offset_top = 30.0
+offset_right = 1060.0
+offset_bottom = 690.0
+
+[node name="VBox" type="VBoxContainer" parent="Paper"]
+layout_mode = 2
+theme_override_constants/separation = 12
+
+[node name="Header" type="Label" parent="Paper/VBox"]
+theme_override_fonts/font = ExtResource("font_pix")
+unique_name_in_owner = true
+layout_mode = 2
+theme_override_colors/font_color = Color(0.17, 0.15, 0.13, 1)
+theme_override_font_sizes/font_size = 24
+text = "10월 12일 (월)  업무 메모"
+
+[node name="From" type="Label" parent="Paper/VBox"]
+layout_mode = 2
+theme_override_colors/font_color = Color(0.46, 0.42, 0.37, 1)
+text = "보낸 사람: 민원팀장 최영미"
+
+[node name="Memo" type="RichTextLabel" parent="Paper/VBox"]
+unique_name_in_owner = true
+layout_mode = 2
+size_flags_vertical = 3
+theme_override_colors/default_color = Color(0.17, 0.15, 0.13, 1)
+theme_override_constants/line_separation = 6
+theme_override_font_sizes/normal_font_size = 18
+bbcode_enabled = true
+
+[node name="StartBtn" type="Button" parent="Paper/VBox"]
+unique_name_in_owner = true
+custom_minimum_size = Vector2(0, 52)
+layout_mode = 2
+theme_override_font_sizes/font_size = 20
+text = "창구로 가기"
