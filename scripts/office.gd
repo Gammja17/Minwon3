@@ -15,7 +15,12 @@ const PAINT := {
 	"select": [Color(1, 0.8, 0.1, 0.45), Color("d9a400")],
 	"flaw": [Color(0.9, 0.2, 0.15, 0.22), Color("c0392b")],
 }
-const MAIN_KINDS := ["form", "move", "death_form", "reissue"]
+const MAIN_KINDS := ["form", "move", "death_form", "reissue", "lease", "seal_reg"]
+## 다음 단계로 넘어갈 때 앞 단계에서 지우는 것
+const STAGE_DROP := ["flaw", "_valid", "_found", "_asked", "needs_call", "_called", "guard_warn", "reason", "custom", "outcomes",
+	"reject_say", "thanks", "again", "asks", "win_flag", "fail_flag", "win_event", "fail_event", "verified_by"]
+const NOTE_SPOTS := [Vector2(34, 26), Vector2(212, 24), Vector2(36, 104), Vector2(210, 106)]
+const NOTE_TEX := preload("res://assets/ui/sticky.png")
 const SPOTS := [Vector2(16, 12), Vector2(360, 12), Vector2(704, 12), Vector2(40, 168), Vector2(384, 168), Vector2(690, 150)]
 const PAPER_AREA := Rect2(0, -34, 1040, 380)   # 책상 위(서류 넣는 곳까지 끌어 올릴 수 있게)
 
@@ -74,6 +79,7 @@ var tab := "lookup"
 var messages: Array = []    # [시각, 보낸 사람, 내용, 색]
 var unread := 0
 var tutorial: Tutorial = null   # 연습 창구일 때만
+var notes_layer: Control       # 창구 유리에 붙은 메모들
 
 
 func _ready() -> void:
@@ -104,6 +110,13 @@ func _ready() -> void:
 	_build_docs()
 	_refresh_all()
 	_refresh_top()
+	notes_layer = Control.new()
+	notes_layer.set_anchors_preset(Control.PRESET_FULL_RECT)
+	notes_layer.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	window.add_child(notes_layer)
+	window.move_child(notes_layer, portrait_box.get_index() + 1)
+	for n in Game.notes:
+		_add_note_view(n, false)
 	if Game.tutorial:
 		tutorial = Tutorial.new()
 		add_child(tutorial)
@@ -172,6 +185,8 @@ func _process(delta: float) -> void:
 	if holding != "":
 		stamp_cursor.global_position = get_global_mouse_position() - Vector2(70, 30)
 	_update_slot()
+	if notes_layer:
+		_pulse_note()
 	if Game.stress >= 100:
 		_go_ending()
 
@@ -366,7 +381,7 @@ func stamp_paper(p: Paper, at: Vector2) -> void:
 		return
 	var kind := holding
 	var k: String = p.doc.get("kind", "")
-	var text := "반려" if kind == "no" else ("발급" if k == "form" else "접수")
+	var text := "반려" if kind == "no" else _ok_word(k)
 	p.add_mark(kind, text, at)
 	_drop_stamp()
 	Sfx.play("stamp")
@@ -546,6 +561,8 @@ func _refresh_responses() -> void:
 			if not c.get("_asked", []).has(i):
 				var b := _response(asks[i]["q"], _ask.bind(i))
 				b.set_meta("ask", i)
+	if phase == "calm" and _can_fix():
+		_response("그 자리에서 고쳐 쓰게 한다", _fix_on_spot, true)
 	if phase in ["calm", "hostile", "gift"]:
 		for pair in c.get("custom", []):
 			_response(pair[1], _decide.bind(pair[0]), true)
@@ -739,7 +756,10 @@ func _decide(action: String) -> void:
 	if c.get("dumped", false) and action != "noh_back":
 		Game.noh = clampi(Game.noh + 5, 0, 100)
 	if o.get("result") == "right" and action.begins_with("reject:") and not c.get("story", false):
-		Game.schedule_revisit(c)
+		var note := Game.schedule_revisit(c)
+		if not note.is_empty():
+			_say_them(Content.SAME_DAY[c["flaw"]["reason"]][1])
+			_add_note_view(note, true)
 	if o.get("result") == "right" and action.begins_with("transfer:") and not c.get("_bounced", false):
 		var key := action.substr(9)
 		if Game.dept[key] <= 30 and Game.rng.randf() < 0.4:
@@ -754,19 +774,35 @@ func _decide(action: String) -> void:
 	if o.get("result") == "right":
 		if action == "process":
 			Skeam.unlock("first_process")
+			if c.get("_fixed", false):
+				Skeam.unlock("fix_on_spot")
+			if c.has("note_id"):
+				Skeam.unlock("note_back")
 		elif action.begins_with("transfer:"):
 			Skeam.unlock("right_dept")
+		if c.has("next"):
+			_next_stage()
+			return
 	Game.stats["served"] += 1
 	_leave()
 
 
 ## 도장 없이 결정된 경우(봉투, 자동 검사 등)에도 신청서에 도장 자국을 남긴다
+func _ok_word(kind: String) -> String:
+	match kind:
+		"form":
+			return "발급"
+		"lease":
+			return "확정"
+	return "접수"
+
+
 func _auto_stamp(action: String) -> void:
 	var m := _main_paper()
 	if m == null or not m.stamps.is_empty():
 		return
 	if action == "process" or action == "bribe":
-		m.add_mark("ok", "발급" if m.doc.get("kind") == "form" else "접수", m.size * 0.5)
+		m.add_mark("ok", _ok_word(m.doc.get("kind", "")), m.size * 0.5)
 		Sfx.play("stamp")
 	elif action.begins_with("reject:"):
 		m.add_mark("no", "반려", m.size * 0.5)
@@ -835,6 +871,8 @@ func _escalate(ig: Dictionary) -> void:
 
 func _leave() -> void:
 	leaving = true
+	if c.has("note_id"):
+		_peel_note(int(c["note_id"]))
 	_refresh_all()
 	_hand_back()
 	await get_tree().create_timer(1.6).timeout
@@ -876,6 +914,134 @@ func _hand_back() -> void:
 		t.tween_property(p, "position:y", to.y - p.size.y * 0.5 - 8, 0.14).set_ease(Tween.EASE_IN)
 		t.parallel().tween_property(p, "scale:y", 0.0, 0.14)
 		t.parallel().tween_property(p, "modulate:a", 0.0, 0.14)
+
+
+# ─────────────────────────── 여러 단계 · 그 자리 정정 · 메모 ───────────────────────────
+
+## 한 가지 일이 끝나면 같은 사람이 다음 일을 내민다. 서류가 바뀌면 돌려주고 새로 받는다.
+func _next_stage() -> void:
+	var nx: Dictionary = c["next"]
+	c.erase("next")
+	leaving = true
+	_refresh_all()
+	if nx.has("docs"):
+		_hand_back()
+		await get_tree().create_timer(0.8).timeout
+	else:
+		await get_tree().create_timer(0.4).timeout
+	if not serving:
+		return
+	for k in STAGE_DROP:
+		c.erase(k)
+	for k in nx:
+		c[k] = nx[k]
+	if not c.has("phase"):
+		c["phase"] = "calm"
+	c["lookup"] = Content._lookup_names(c)
+	c["_start"] = Game.clock
+	picked.clear()
+	for n in [portrait, date_label]:
+		n.set_meta("mark", "none")
+		_paint(n, "none")
+	leaving = false
+	portrait.set_face(c["look"], c.get("mood", "normal"))
+	for line in c.get("intro", []):
+		_say_them(line)
+	if nx.has("docs"):
+		_build_docs()
+	if tab == "lookup":
+		_show_lookup()
+	_refresh_all()
+
+
+## 신청서 이름·생년월일을 잘못 쓴 사람: 틀린 곳을 짚었으면 반려 대신 그 자리에서 고쳐 쓰게 할 수 있다
+func _can_fix() -> bool:
+	return c.get("_found", false) and c.has("_valid") and not c.get("_fixed", false) \
+		and String(c.get("flaw", {}).get("reason", "")) == "info"
+
+
+func _fix_on_spot() -> void:
+	var v: Dictionary = c["_valid"]
+	c["docs"] = v["docs"].duplicate(true)
+	for d in c["docs"]:
+		if d["kind"] in ["form", "move"]:
+			d["corrected"] = true
+	c["records"] = v["records"].duplicate(true)
+	for k in ["flaw", "_valid", "reason"]:
+		c.erase(k)
+	c["correct"] = "process"
+	c["_fixed"] = true
+	c["thanks"] = "다시 안 와도 돼서 다행이네요. 감사합니다."
+	_say_me("여기 두 줄 긋고 바로 고쳐 써 주세요. 옆에 서명하시고요.")
+	_say_them("아, 네. (펜을 받아 고쳐 쓰고 서명한다)")
+	Game.pass_time(2)
+	Sfx.play("paper")
+	_build_docs()
+	_refresh_all()
+
+
+## 창구 유리에 붙은 메모 한 장
+func _add_note_view(n: Dictionary, fresh: bool) -> void:
+	var v := Control.new()
+	v.set_meta("note_id", int(n["id"]))
+	v.size = Vector2(86, 78)
+	v.pivot_offset = v.size * 0.5
+	var i := notes_layer.get_child_count()
+	v.position = NOTE_SPOTS[i % NOTE_SPOTS.size()] + Vector2(4, 6) * float(i / NOTE_SPOTS.size())
+	v.rotation_degrees = [-4.0, 3.0, 2.0, -3.0][i % 4]
+	v.mouse_filter = Control.MOUSE_FILTER_PASS
+	v.tooltip_text = "%s  %s\n%s" % [n["time"], n["name"], n["what"]]
+	var tex := TextureRect.new()
+	tex.texture = NOTE_TEX
+	tex.expand_mode = TextureRect.EXPAND_IGNORE_SIZE
+	tex.stretch_mode = TextureRect.STRETCH_SCALE
+	tex.set_anchors_preset(Control.PRESET_FULL_RECT)
+	tex.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	v.add_child(tex)
+	var box := VBoxContainer.new()
+	box.position = Vector2(7, 12)
+	box.size = Vector2(72, 60)
+	box.add_theme_constant_override("separation", 0)
+	box.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	v.add_child(box)
+	for line in [[String(n["name"]), 13, true], [String(n["what"]), 12, false], [String(n["time"]), 11, false]]:
+		var l := Label.new()
+		l.text = DocView.keep_words(line[0])
+		l.add_theme_font_size_override("font_size", line[1])
+		l.add_theme_color_override("font_color", Color("3a2a12"))
+		if line[2]:
+			l.add_theme_font_override("font", BOLD)
+		l.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
+		l.custom_minimum_size.x = 72
+		l.mouse_filter = Control.MOUSE_FILTER_IGNORE
+		box.add_child(l)
+	notes_layer.add_child(v)
+	if fresh:
+		v.scale = Vector2(1.6, 1.6)
+		v.modulate.a = 0.0
+		var tw := create_tween().set_parallel()
+		tw.tween_property(v, "scale", Vector2.ONE, 0.18).set_ease(Tween.EASE_OUT)
+		tw.tween_property(v, "modulate:a", 1.0, 0.12)
+		Sfx.play("paper", -4.0)
+
+
+## 메모 주인이 다녀가면 떼어 낸다
+func _peel_note(id: int) -> void:
+	Game.remove_note(id)
+	for v in notes_layer.get_children():
+		if int(v.get_meta("note_id", -1)) == id:
+			var tw := create_tween().set_parallel()
+			tw.tween_property(v, "position:y", v.position.y - 40, 0.35).set_ease(Tween.EASE_IN)
+			tw.tween_property(v, "rotation_degrees", v.rotation_degrees + 25, 0.35)
+			tw.tween_property(v, "modulate:a", 0.0, 0.35)
+			tw.chain().tween_callback(v.queue_free)
+
+
+func _pulse_note() -> void:
+	var id := int(c.get("note_id", -1)) if serving else -1
+	for v in notes_layer.get_children():
+		var on := int(v.get_meta("note_id", -2)) == id
+		v.modulate = Color(1.2, 1.15, 0.8) * (0.8 + 0.2 * sin(Time.get_ticks_msec() / 150.0)) if on else Color.WHITE
 
 
 func _end_day() -> void:
@@ -1099,6 +1265,7 @@ func _judge(a: String, b: String) -> bool:
 		c["_found"] = true
 		Skeam.unlock("sharp_eye")
 		_slip("지적: " + f.get("label", Content.REASONS[f["reason"]]), SLIP_GOOD)
+		_refresh_responses()   # 신청서 오타면 '그 자리에서 고쳐 쓰게 한다'가 나타난다
 	return true
 
 
@@ -1135,7 +1302,14 @@ func _paint(node: Control, kind: String) -> void:
 
 func _say_them(line: String) -> void:
 	if line.begins_with("("):
-		_log("[color=%s][i]%s[/i][/color]\n" % [C_ACT, line])
+		# "(행동) 말"이면 행동과 말을 나눠 적는다
+		var close := line.find(")")
+		var rest := line.substr(close + 1).strip_edges() if close > 0 else ""
+		if line.left(close).contains("정다운") or line.left(close).contains("최 팀장"):
+			rest = ""   # 다른 사람이 끼어들어 하는 말은 나누지 않는다
+		_log("[color=%s][i]%s[/i][/color]\n" % [C_ACT, line.substr(0, close + 1) if rest != "" else line])
+		if rest != "":
+			_log("[b][color=%s]민원인[/color][/b]  %s\n" % [C_THEM, rest])
 	else:
 		_log("[b][color=%s]민원인[/color][/b]  %s\n" % [C_THEM, line])
 

@@ -31,6 +31,12 @@ achievements:
   - id: calm_down
     name: "먹금의 달인"
     desc: "소리부터 지르는 민원인을 대꾸 없이 진정시키세요"
+  - id: fix_on_spot
+    name: "두 줄 긋고 서명"
+    desc: "신청서를 잘못 쓴 민원인을 반려하지 않고 그 자리에서 고쳐 쓰게 하세요"
+  - id: note_back
+    name: "메모 한 장"
+    desc: "창구 유리에 메모를 붙이고 간 민원인이 다시 왔을 때 서류를 떼 주세요"
   # 이야기
   - id: dalsu_served
     name: "박달수 할아버지"
@@ -50,6 +56,15 @@ achievements:
   - id: councilor_refused
     name: "의원님도 규정대로"
     desc: "구의원의 부탁을 규정대로 거절하세요"
+  - id: minjae_saved
+    name: "보증금 지킴이"
+    desc: "전세 계약서에 확정일자를 받은 오민재 씨가 보증금을 지키게 하세요"
+  - id: haneul_ok
+    name: "지문 한 번이면"
+    desc: "신분증을 두고 온 수험생이 원서 마감에 늦지 않게 하세요"
+  - id: jaehyuk_ok
+    name: "촬영은 잠시만"
+    desc: "창구를 찍는 유튜버에게 촬영을 멈춰 달라고 한 뒤 서류를 떼 주세요"
   # 엔딩
   - id: two_weeks
     name: "2주 완주"

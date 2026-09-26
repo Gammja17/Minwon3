@@ -40,6 +40,12 @@ var revisit_chance := 0.6
 var later: Array = []      # 전산 장애로 돌려보낸 사람들 (오후에 다시 온다)
 var tutorial := false      # 연습 창구 중
 var dalsu_used := false    # 박달수 씨 대기실 도우미 (하루 한 번)
+var notes: Array = []      # 창구 유리에 붙은 "좀 이따 다시 올게요" 메모 [{id, name, what, time}]
+var note_seq := 0
+
+## 저장: 아침마다(업무 메모를 펼 때) 한 번. 웹판에서는 SKEAM이 이 파일을 계정 클라우드에 올린다.
+const SAVE_PATH := "user://save.txt"
+const SAVE_KEYS := ["day", "rep", "pen", "stress", "study", "flags", "money", "dept", "noh", "future", "notes", "note_seq"]
 
 
 func new_game() -> void:
@@ -53,9 +59,11 @@ func new_game() -> void:
 	flags = {}
 	fail_reason = ""
 	money = 380000
-	dept = {"welfare": 55, "passport": 50, "traffic": 50, "clean": 50, "police": 50}
+	dept = {"welfare": 55, "passport": 50, "traffic": 50, "clean": 50, "tax": 50, "police": 50}
 	noh = 50
 	future = {}
+	notes = []
+	note_seq = 0
 	start_day()
 
 
@@ -84,6 +92,51 @@ func start_day() -> void:
 	day_start_pen = pen
 	_arrive_acc = 0.0
 	_press_acc = 0.0
+
+
+func save_game() -> void:
+	if tutorial:
+		return
+	var d := {"rng_seed": rng.seed, "rng_state": rng.state}
+	for k in SAVE_KEYS:
+		d[k] = get(k)
+	var f := FileAccess.open(SAVE_PATH, FileAccess.WRITE)
+	if f:
+		f.store_string(var_to_str(d))
+
+
+func has_save() -> bool:
+	return FileAccess.file_exists(SAVE_PATH)
+
+
+func save_day() -> int:
+	var d: Variant = _read_save()
+	return int(d.get("day", 0)) if d is Dictionary else 0
+
+
+func load_game() -> bool:
+	var d: Variant = _read_save()
+	if not d is Dictionary:
+		return false
+	new_game()
+	for k in SAVE_KEYS:
+		if d.has(k):
+			set(k, d[k])
+	rng.seed = d.get("rng_seed", rng.seed)
+	rng.state = d.get("rng_state", rng.state)
+	return true   # 하루 시작(start_day)은 업무 메모의 [창구로 가기]에서
+
+
+func clear_save() -> void:
+	if has_save():
+		DirAccess.remove_absolute(SAVE_PATH)
+
+
+func _read_save() -> Variant:
+	if not has_save():
+		return null
+	var f := FileAccess.open(SAVE_PATH, FileAccess.READ)
+	return str_to_var(f.get_as_text()) if f else null
 
 
 func tick(delta: float) -> void:
@@ -186,13 +239,47 @@ func requeue_bounce(c: Dictionary, key: String) -> void:
 	waiting += 1
 
 
-## 맞는 사유로 반려된 민원인이 하루이틀 뒤 서류를 고쳐서 다시 온다
-func schedule_revisit(c: Dictionary) -> void:
+## 맞는 사유로 반려된 민원인이 서류를 고쳐서 다시 온다.
+## 금방 챙겨 올 수 있는 것이면 창구 유리에 메모를 붙이고 같은 날 다시 온다(그 메모를 돌려준다). 아니면 하루이틀 뒤.
+func schedule_revisit(c: Dictionary) -> Dictionary:
 	if not c.has("_valid") or rng.randf() > revisit_chance:
-		return
+		return {}
+	var why: String = c["flaw"]["reason"]
+	if Content.SAME_DAY.has(why) and not c.has("note_id") and clock < 960.0 and rng.randf() < 0.65:
+		return _note_and_return(c, why)
 	var d := day + rng.randi_range(1, 2)
 	if d > Content.LAST_DAY:
-		return
+		return {}
+	var r := _revisit_case(c)
+	if not future.has(d):
+		future[d] = []
+	future[d].append(r)
+	return {}
+
+
+func _note_and_return(c: Dictionary, why: String) -> Dictionary:
+	note_seq += 1
+	var t := int(clock)
+	var note := {"id": note_seq, "name": c["name"], "what": Content.SAME_DAY[why][0], "time": "%02d:%02d" % [t / 60, t % 60]}
+	notes.append(note)
+	var r: Dictionary
+	if Content.NOTE_PLEA.has(why) and rng.randf() < 0.25:
+		# 챙겨 오지 못하고 사정한다: 그대로 다시 반려해야 한다
+		r = _returning(c)
+		r.erase("_valid")
+		r["intro"] = ["아까 메모 붙여 두고 간 %s예요." % c["name"], Content.NOTE_PLEA[why]]
+		r["mood"] = "sad"
+	else:
+		r = _revisit_case(c)
+		r["intro"] = ["아까 메모 붙여 두고 간 %s예요. %s" % [c["name"], Content.NOTE_BACK[why]]]
+		r["mood"] = "normal"
+	r["note_id"] = note_seq
+	queue.insert(mini(rng.randi_range(2, 4), queue.size()), r)
+	waiting += 1
+	return note
+
+
+func _revisit_case(c: Dictionary) -> Dictionary:
 	var r := _returning(c)
 	r.merge(c["_valid"], true)
 	for k in ["flaw", "_valid", "returned", "returned_reason"]:
@@ -205,9 +292,7 @@ func schedule_revisit(c: Dictionary) -> void:
 	r["thanks"] = "이번엔 됐네요. 감사합니다!"
 	r["lookup"] = Content._lookup_names(r)
 	r["asks"] = []
-	if not future.has(d):
-		future[d] = []
-	future[d].append(r)
+	return r
 
 
 ## 전산 장애로 돌려보낸 사람이 오후에 원래 서류를 들고 다시 온다
@@ -281,8 +366,23 @@ func check_fail() -> bool:
 	return fail_reason != ""
 
 
+func remove_note(id: int) -> void:
+	notes = notes.filter(func(n): return int(n["id"]) != id)
+
+
 ## 업무 종료. 남은 대기 인원을 정산한다.
 func close_day() -> void:
+	# 메모를 붙이고 간 사람이 마감까지 못 왔으면 내일 아침에 온다
+	for e in queue:
+		if e is Dictionary and e.has("note_id"):
+			if day < Content.LAST_DAY:
+				var r: Dictionary = e.duplicate(true)
+				r["intro"] = ["어제 메모 붙여 두고 간 %s예요. 어제는 문 닫을 때까지 못 와서요." % r["name"]] + r["intro"].slice(1)
+				if not future.has(day + 1):
+					future[day + 1] = []
+				future[day + 1].append(r)
+			else:
+				remove_note(int(e["note_id"]))
 	money -= DAILY_COST
 	if waiting > 0:
 		rep = clampi(rep - waiting / 3, 0, 100)
@@ -393,6 +493,12 @@ func final_findings() -> Array:
 		out.append("구의원 요청으로 위임장 없이 등본을 발급함")
 	if flags.get("taemin_done", false):
 		out.append("위조 신분증으로 인감증명서를 발급함")
+	if flags.get("minjae_erased", false):
+		out.append("집주인 말만 듣고 세입자의 전입신고를 빼 줌")
+	if flags.get("changsik_told", false):
+		out.append("세입자의 전입 날짜를 집주인에게 알려 줌")
+	if flags.get("jaehyuk_filmed", false):
+		out.append("촬영 중인 창구에서 서류를 처리해 다른 민원인 정보가 찍힘")
 	return out
 
 
@@ -521,6 +627,22 @@ func _epilogue() -> Array:
 		out.append("차동훈은 경찰에 넘겨졌고, 윤서영 씨의 전 남편에게는 접근금지 명령이 내려졌다. 윤서영 씨는 요즘 밤에 창문을 열어 둔다.")
 	elif flags.get("envelope_refused", false) or flags.get("envelope_guarded", false):
 		out.append("윤서영 씨는 자기 주소를 캐러 왔던 사람이 있었다는 걸 모른다. 그걸로 됐다.")
+	if flags.get("minjae_saved", false):
+		out.append("오민재 씨는 경매에서 보증금을 대부분 돌려받았다. 확정일자 도장이 찍힌 계약서를 액자에 넣어 뒀다고 한다.")
+	elif flags.get("minjae_erased", false):
+		out.append("오민재 씨는 은행보다 순서가 밀려 보증금의 절반을 잃었다. 집주인 황보창식은 사기 혐의로 조사를 받고 있다.")
+	elif flags.get("minjae_turned", false) or flags.get("minjae_no_date", false):
+		out.append("오민재 씨는 보증금을 돌려받으려고 소송을 시작했다. 확정일자가 없는 계약서는 힘이 약했다.")
+	if flags.get("haneul_ok", false) or flags.get("haneul_rushed", false):
+		out.append("김하늘 학생은 원서를 5시 58분에 냈다. 합격 문자를 받으면 3번 창구에 알려 주겠다고 했다.")
+	elif flags.get("haneul_missed", false):
+		out.append("김하늘 학생은 그 대학 원서를 내지 못했다. 재수 학원 상담을 받았다고 한다.")
+	if flags.get("jaehyuk_ok", false):
+		out.append("도재혁의 영상 제목은 '생각보다 친절했던 햇살동 3번 창구'로 바뀌었다. 댓글에는 칭찬이 더 많다.")
+	elif flags.get("jaehyuk_filmed", false):
+		out.append("도재혁의 영상에 3번 창구 모니터가 모자이크 없이 나왔다. 구청 감사실에 민원이 들어갔다.")
+	elif flags.get("jaehyuk_angry", false):
+		out.append("'햇살동 갑질 공무원' 영상은 조회수 3만을 넘겼다. 구청 게시판이 한동안 시끄러웠다.")
 	if flags.get("noh_favor_done", false):
 		out.append("노 주무관은 요즘 3번 창구에 커피를 자주 가져다준다. 처제 인감 건은 평가서에 한 줄로 남았다.")
 	elif flags.get("noh_refused", false):

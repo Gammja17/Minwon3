@@ -12,6 +12,9 @@ const FLAGS := {
 	"envelope_refused": "envelope_refused",
 	"councilor_refused": "councilor_refused",
 	"audit_pass": "audit_pass",
+	"minjae_saved": "minjae_saved",
+	"haneul_ok": "haneul_ok",
+	"jaehyuk_ok": "jaehyuk_ok",
 }
 
 

@@ -8,18 +8,24 @@ const STORY_DAYS := {"d1_first": 1, "d1_dalsu": 1, "d1_passport": 1, "d1_photo":
 	"d2_drunk": 2, "d3_dalsu": 3, "d3_mee": 3, "d3_license": 3, "d4_death": 4, "d4_mee": 4, "d4_scam": 4, "d4_envelope": 4,
 	"d5_auditor": 5, "d5_dalsu": 5,
 	"w2_jiwoo": 6, "w2_reissue": 6, "w2_mansu": 6, "w2_taemin": 7, "w2_mee_again": 7, "w2_mee": 8, "w2_noh_favor": 8,
-	"w2_seoyoung": 9, "w2_dalsu": 9, "w2_donghun": 9, "w2_councilor": 10}
+	"w2_seoyoung": 9, "w2_dalsu": 9, "w2_donghun": 9, "w2_councilor": 10,
+	"d4_haneul": 4, "w2_minjae": 6, "w2_changsik": 7, "w2_jaehyuk": 8, "w2_minjae2": 10}
 const FLAG_SETS := [
 	{},
 	{"dalsu_ejected": true, "mee_helped": true, "scam_caught": true, "envelope_refused": true, "dalsu_done": true,
 		"_rep": 80, "vip_favor": true, "noh_lunch_helped": true},
 	{"scam_escaped": true, "mee_hurt": true, "envelope_guarded": true},
 	{"scam_done": true, "stalker_given": true, "_rep": 30},
+	{"minjae_fixed": true, "minjae_erased": true},
+	{"minjae_fixed": true, "changsik_told": true},
 ]
+const STAGE_DROP := ["flaw", "_valid", "_found", "_asked", "needs_call", "_called", "guard_warn", "reason", "custom", "outcomes",
+	"reject_say", "thanks", "again", "asks", "win_flag", "fail_flag", "win_event", "fail_event", "verified_by"]
 
 var fails := 0
 var revisits := 0
 var story_seen := {}
+var stages := 0
 
 
 func _init() -> void:
@@ -60,7 +66,7 @@ func _init() -> void:
 	for id in STORY_DAYS:
 		if not story_seen.has(id):
 			_fail(id, "어떤 플래그 조합에서도 나오지 않음")
-	print("story cases checked: %d, revisits checked: %d" % [story_seen.size(), revisits])
+	print("story cases checked: %d, revisits checked: %d, next stages checked: %d" % [story_seen.size(), revisits, stages])
 	print("FAILS: %d" % fails)
 	quit(1 if fails > 0 else 0)
 
@@ -75,6 +81,22 @@ func _calm(c: Dictionary) -> Dictionary:
 
 
 func _check(c: Dictionary, day: int, tag: String) -> void:
+	if c.has("next"):
+		if c["correct"] in ["reject", "guard"] or String(c["correct"]).begins_with("transfer:"):
+			_fail(tag, "다음 단계가 있는데 첫 단계 정답이 %s" % c["correct"])
+		var n := c.duplicate(true)
+		n.erase("next")
+		for k in STAGE_DROP:
+			n.erase(k)
+		for k in c["next"]:
+			n[k] = c["next"][k]
+		if not n.has("phase"):
+			n["phase"] = "calm"
+		n["lookup"] = CT._lookup_names(n)
+		stages += 1
+		_check(n, day, tag + " (다음 단계)")
+		c = c.duplicate()
+		c.erase("next")
 	var correct: String = c["correct"]
 	if c.has("_after"):
 		# 전산 장애 중: '전산 장애'로 반려하면 오후에 원래 서류로 다시 온다
@@ -105,6 +127,13 @@ func _check(c: Dictionary, day: int, tag: String) -> void:
 			_fail(tag, "확인 전화 없이 떼 줘도 벌점이 없음")
 	if c.get("phase") != "calm":
 		return
+	if not correct in ["process", "reject", "guard"] and not correct.begins_with("transfer:"):
+		var mine := false
+		for pair in c.get("custom", []):
+			mine = mine or pair[0] == correct
+		if not mine:
+			_fail(tag, "정답(%s)을 고를 버튼이 없음" % correct)
+		return
 	if correct.begins_with("transfer:"):
 		if not CT.DEPTS.has(correct.substr(9)):
 			_fail(tag, "없는 부서: " + correct)
@@ -123,7 +152,7 @@ func _expected(c: Dictionary, day: int) -> String:
 	for d in c["docs"]:
 		match String(d["kind"]):
 			"id": id = d
-			"form", "move", "death_form", "reissue": main = d
+			"form", "move", "death_form", "reissue", "lease", "seal_reg": main = d
 			"proxy": proxy = d
 			"death_cert": cert = d
 	var R: Dictionary = c["records"]
@@ -137,6 +166,9 @@ func _expected(c: Dictionary, day: int) -> String:
 		if JSON.stringify(R[main["name"]].get("look", {})) != face:
 			return "guard"
 		return "process"
+	if id.is_empty() and c.get("verified_by", "") == "finger" and main.has("applicant") and R.has(main["applicant"]):
+		# 신분증 대신 지문으로 본인 확인을 마쳤다
+		id = {"name": main["applicant"], "birth": R[main["applicant"]]["birth"], "look": c["look"], "type": "주민등록증", "date": "2020.01.01"}
 	if id.is_empty():
 		return "reject"
 	if JSON.stringify(id["look"]) != face:
@@ -150,6 +182,16 @@ func _expected(c: Dictionary, day: int) -> String:
 	if day >= 6 and R[id["name"]].has("look") and JSON.stringify(R[id["name"]]["look"]) != face:
 		return "guard"   # 사진은 본인인데 전산 사진이 다르다: 위조 신분증
 	match String(main["kind"]):
+		"lease":
+			if main["tenant"] != id["name"] or main["tenant_birth"] != id["birth"]:
+				return "reject"
+			if not String(main["addr"]).begins_with(CT.OUR_DONG):
+				return "reject"
+			return "process"
+		"seal_reg":
+			if main["name"] != id["name"] or main["birth"] != id["birth"]:
+				return "reject"
+			return "process"
 		"move":
 			if main["name"] != id["name"] or main["birth"] != id["birth"]:
 				return "reject"

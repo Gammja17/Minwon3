@@ -26,4 +26,5 @@ func _ready() -> void:
 			Game.weekend()
 			get_tree().change_scene_to_file("res://scenes/briefing.tscn"))
 	else:
+		Game.clear_save()   # 끝난 게임은 이어 할 수 없다
 		%RestartBtn.pressed.connect(func(): get_tree().change_scene_to_file("res://scenes/title.tscn"))

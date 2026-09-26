@@ -125,6 +125,75 @@ func _ready() -> void:
 	await _wait(1.0)
 	await _save("18_w2_random")
 	office.queue_free()
+	# 여러 단계: 오민재 (전입신고 → 확정일자)
+	Game.new_game()
+	Game.day = 6
+	Game.start_day()
+	Game.queue = ["w2_minjae"]
+	office = await _open("res://scenes/office.tscn")
+	office._on_next()
+	await _wait(1.0)
+	await _save("19_minjae_move")
+	office.pick_stamp("ok")
+	office.stamp_paper(office._main_paper(), Vector2(170, 90))
+	office.return_papers()
+	await _wait(1.8)
+	await _save("20_minjae_lease")
+	office.queue_free()
+	# 메모와 그 자리 정정: 틀린 곳이 있는 무작위 민원을 골라 온다
+	Game.new_game()
+	Game.day = 3
+	Game.start_day()
+	var note_case := _find_case(3, func(c): return c.has("_valid") and c["flaw"]["reason"] == "proxy")
+	var fix_case := _find_case(3, func(c): return c.has("_valid") and c["flaw"]["reason"] == "info" and c["docs"][1]["kind"] == "form")
+	Game.queue = [note_case, fix_case]
+	Game.revisit_chance = 1.0
+	office = await _open("res://scenes/office.tscn")
+	for i in 20:
+		Game.notes = []
+		office._on_next()
+		await _wait(0.6)
+		var pr: Array = office.c["flaw"]["pairs"][0]
+		office._judge(pr[0], pr[1])
+		office._decide("reject:proxy")
+		await _wait(0.4)
+		if not Game.notes.is_empty():
+			break
+		await _wait(2.2)
+		Game.queue.push_front(note_case.duplicate(true))
+	await _save("21_note")
+	await _wait(2.5)
+	Game.queue = [fix_case]
+	office._on_next()
+	await _wait(0.8)
+	var fp: Array = office.c["flaw"]["pairs"][0]
+	office._judge(fp[0], fp[1])
+	await _wait(0.3)
+	await _save("22_fix_button")
+	office._fix_on_spot()
+	await _wait(0.8)
+	await _save("23_fixed")
+	office.queue_free()
+	Game.revisit_chance = 0.6
+	# 수험생과 유튜버
+	Game.new_game()
+	Game.day = 4
+	Game.start_day()
+	Game.queue = ["d4_haneul"]
+	office = await _open("res://scenes/office.tscn")
+	office._on_next()
+	await _wait(1.0)
+	await _save("24_haneul")
+	office.queue_free()
+	Game.day = 8
+	Game.start_day()
+	Game.clock = 800.0
+	Game.queue = ["w2_jaehyuk"]
+	office = await _open("res://scenes/office.tscn")
+	office._on_next()
+	await _wait(1.0)
+	await _save("25_jaehyuk")
+	office.queue_free()
 	Game.flags = {}
 	Game.day = 1
 	Game.events = ["박달수 씨가 국민신문고에 '3번 창구 직원이 노인을 내쫓았다'는 민원을 올렸다."]
@@ -133,6 +202,16 @@ func _ready() -> void:
 	Game.flags = {"dalsu_done": true, "grandma_helped": true, "mee_helped": true, "scam_caught": true, "took_gift": true}
 	await _snap_scene("res://scenes/ending.tscn", "11_ending")
 	get_tree().quit()
+
+
+func _find_case(day: int, want: Callable) -> Dictionary:
+	var rng := RandomNumberGenerator.new()
+	rng.seed = 5
+	for i in 5000:
+		var c := Content.make_routine(day, rng)
+		if c.get("phase") == "calm" and c.has("flaw") and want.call(c):
+			return c
+	return {}
 
 
 func _find_fid(n: Node, fid: String) -> Control:

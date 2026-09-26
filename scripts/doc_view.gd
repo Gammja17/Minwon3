@@ -18,10 +18,15 @@ static func make(doc: Dictionary, pick := Callable()) -> Control:
 			return _id_card(doc, pick)
 		"form":
 			return _paper(doc["title"], _rows(k, doc, [["subject", "대상자"], ["subject_birth", "대상자 생년월일"],
-				["applicant", "신청인"], ["relation", "대상자와의 관계"]], pick))
+				["applicant", "신청인"], ["relation", "대상자와의 관계"]], pick), _corrected(doc))
 		"move":
 			return _paper("전입신고서", _rows(k, doc, [["name", "성명"], ["birth", "생년월일"],
-				["old_addr", "이전 주소"], ["new_addr", "새 주소"]], pick))
+				["old_addr", "이전 주소"], ["new_addr", "새 주소"]], pick), _corrected(doc))
+		"lease":
+			return _paper("주택 임대차 계약서", _rows(k, doc, [["landlord", "임대인"], ["tenant", "임차인"], ["tenant_birth", "임차인 생년월일"],
+				["addr", "임대 주택"], ["deposit", "보증금"], ["date", "계약일"]], pick), _note("임대인·임차인 도장 날인"), Color("f7f1dc"))
+		"seal_reg":
+			return _paper("인감 신고서", _rows(k, doc, [["name", "성명"], ["birth", "생년월일"], ["addr", "주소"], ["seal", "신고할 도장"]], pick))
 		"proxy":
 			return _paper("위임장", _rows(k, doc, [["grantor", "위임하는 사람"], ["grantor_birth", "생년월일"],
 				["grantee", "위임받는 사람"], ["purpose", "맡기는 일"]], pick), _wrap(_seal_row(doc["grantor"], doc["seal"]), "proxy.seal", pick))
@@ -40,6 +45,19 @@ static func make(doc: Dictionary, pick := Callable()) -> Control:
 		rows.append(_wrap(_row(r[0], r[1]), "paper.%d" % i, pick))
 		i += 1
 	return _paper(doc.get("title", "서류"), rows)
+
+
+## 그 자리에서 고쳐 쓴 신청서에는 정정 표시가 남는다
+static func _corrected(doc: Dictionary) -> Control:
+	if not doc.get("corrected", false):
+		return null
+	var l := _label("정정 1곳 · 두 줄 긋고 신청인 서명", 14, RED)
+	l.add_theme_font_override("font", BOLD)
+	return l
+
+
+static func _note(text: String) -> Control:
+	return _label(text, 14, MUTED)
 
 
 static func record_card(name: String, rec: Variant, pick := Callable(), show_photo := false) -> Control:

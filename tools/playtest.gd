@@ -6,7 +6,8 @@ extends Node
 const OFFICE := preload("res://scenes/office.tscn")
 const EXPECT_GOOD := ["dalsu_served", "grandma_helped", "mee_helped", "declined_gift", "scam_caught", "audit_pass",
 	"dalsu_done", "envelope_refused", "noh_asked", "mom_helped",
-	"jiwoo_moved", "okja_done", "mansu_thanked", "mee_extended", "noh_refused", "seoyoung_served", "donghun_left", "councilor_refused"]
+	"jiwoo_moved", "okja_done", "mansu_thanked", "mee_extended", "noh_refused", "seoyoung_served", "donghun_left", "councilor_refused",
+	"minjae_fixed", "changsik_refused", "haneul_ok", "jaehyuk_ok", "minjae_saved"]
 const EXPECT_BAD := ["taemin_caught", "mee_second", "dalsu_done", "donghun_left", "seoyoung_served"]
 
 var seen := {}
@@ -35,13 +36,15 @@ func _ready() -> void:
 	for line in e["body"]:
 		print("  " + str(line))
 	_expect("1회차", EXPECT_GOOD)
-	for k in ["requeue", "escalate", "reason_return", "revisit", "sos", "noh_back", "dumped", "call_ok", "outage_wait", "outage_after", "dalsu_help", "payday", "photo_shown"]:
+	for k in ["requeue", "escalate", "reason_return", "revisit", "sos", "noh_back", "dumped", "call_ok", "outage_wait", "outage_after", "dalsu_help", "payday", "photo_shown",
+			"stage", "note", "fix", "lease", "seal_reg"]:
 		if not seen.has(k):
 			print("  [MISSING] %s" % k)
 			ok = false
 	print("seen=%s ui_decisions=%d" % [seen, ui_decisions])
 	var got: Array = Engine.get_meta("skeam_log")
-	for id in ["first_process", "sharp_eye", "right_dept", "calm_down", "dalsu_served", "scam_caught", "envelope_refused", "councilor_refused", "audit_pass"]:
+	for id in ["first_process", "sharp_eye", "right_dept", "calm_down", "dalsu_served", "scam_caught", "envelope_refused", "councilor_refused", "audit_pass",
+			"minjae_saved", "haneul_ok", "jaehyuk_ok", "fix_on_spot", "note_back"]:
 		if not got.has(id):
 			print("  [MISSING] 도전 과제 %s" % id)
 			ok = false
@@ -69,6 +72,22 @@ func _ready() -> void:
 	var fired: bool = Game.week_report()["title"] == "파면"
 	print("bribe path: memo=%s fired=%s" % [bad_memo, fired])
 	ok = ok and bad_memo and fired
+
+	# ── 저장하고 이어 하기 ──
+	Game.new_game()
+	Game.day = 4
+	Game.flags = {"dalsu_done": true}
+	Game.money = 123000
+	Game.future = {5: [{"name": "메모 손님", "note_id": 1}]}
+	Game.notes = [{"id": 1, "name": "메모 손님", "what": "위임장 받아 오기", "time": "13:20"}]
+	Game.save_game()
+	Game.new_game()
+	var loaded := Game.load_game()
+	var same: bool = loaded and Game.day == 4 and Game.flags.has("dalsu_done") and Game.money == 123000 and Game.notes.size() == 1 and Game.future.get(5, []).size() == 1
+	print("save/load: %s" % same)
+	ok = ok and same
+	Game.clear_save()
+	ok = ok and not Game.has_save()
 
 	# ── 저녁 화면이 넘치지 않는지 ──
 	Game.new_game()
@@ -194,6 +213,7 @@ func _run_days(from: int, to: int) -> void:
 			seen["payday"] = true
 		if day == 4:
 			Game.queue.insert(1, "N")   # SOS와 돌려보내기를 모두 거치도록 한 명 더
+			Game.dept["welfare"] = maxi(Game.dept["welfare"], 75)   # 부서가 늘어 복지팀 관계가 느리게 오르므로 SOS를 쓸 수 있게
 		var office: Node = OFFICE.instantiate()
 		add_child(office)
 		office.set_process(false)
@@ -225,7 +245,7 @@ func _run_days(from: int, to: int) -> void:
 				return
 			Game.weekend()
 		elif day < Content.LAST_DAY:
-			Game.evening("study" if day % 2 == 0 else "friend")
+			Game.evening("rest" if Game.stress >= 60 else ("study" if day % 2 == 0 else "friend"))
 
 
 ## 반려 도장을 찍고, 사유서에 체크하고, 서류 넣는 곳으로 돌려준다
@@ -257,9 +277,19 @@ func _play(office: Node) -> void:
 	if String(c0.get("intro", [""])[0]).begins_with("오전에 전산이"):
 		seen["outage_after"] = true
 	var guard := 0
-	while office.serving and not office.leaving and guard < 12:
+	while office.serving and guard < 24:
+		if office.leaving:
+			await get_tree().process_frame   # 다음 단계로 넘어가는 중이거나 떠나는 중
+			continue
 		guard += 1
 		var c: Dictionary = office.c
+		if c.has("next"):
+			seen["stage"] = true
+		if c.has("note_id"):
+			seen["note"] = true
+		for d in c.get("docs", []):
+			if d["kind"] in ["lease", "seal_reg"]:
+				seen[d["kind"]] = true
 		if c.get("returned_reason", false):
 			seen["reason_return"] = true
 		elif c.get("returned", false):
@@ -296,6 +326,12 @@ func _play(office: Node) -> void:
 				if c.has("flaw") and not c.get("_found", false) and not c["flaw"]["pairs"].is_empty():
 					var pair: Array = c["flaw"]["pairs"][0]
 					office._judge(pair[0], pair[1])
+				if office._can_fix() and seen.get("fix_tries", 0) < 3:
+					# 신청서 오타는 그 자리에서 고쳐 쓰게 해 본다 (그다음엔 처리 도장)
+					seen["fix_tries"] = seen.get("fix_tries", 0) + 1
+					seen["fix"] = true
+					office._fix_on_spot()
+					continue
 				if correct == "reject":
 					var want: String = c["flaw"]["reason"]
 					if not wrong_reason_sent and not c.get("story", false) and not c.has("_after"):
