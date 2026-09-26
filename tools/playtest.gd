@@ -19,7 +19,12 @@ var ui_decisions := 0   # 도장·안내문·서류 넣는 곳으로 확정한 �
 
 func _ready() -> void:
 	Engine.time_scale = 20.0
+	Engine.set_meta("skeam_log", [])
 	await _run_tutorial()
+	var tut_log: Array = Engine.get_meta("skeam_log").duplicate()
+	if not tut_log.is_empty():
+		print("  [FAIL] 연습 창구에서 도전 과제가 나감: %s" % [tut_log])
+		ok = false
 	# ── 1회차: 규정대로 ──
 	Game.new_game()
 	Game.rng.seed = 7
@@ -35,6 +40,11 @@ func _ready() -> void:
 			print("  [MISSING] %s" % k)
 			ok = false
 	print("seen=%s ui_decisions=%d" % [seen, ui_decisions])
+	var got: Array = Engine.get_meta("skeam_log")
+	for id in ["first_process", "sharp_eye", "right_dept", "calm_down", "dalsu_served", "scam_caught", "envelope_refused", "councilor_refused", "audit_pass"]:
+		if not got.has(id):
+			print("  [MISSING] 도전 과제 %s" % id)
+			ok = false
 	if ui_decisions < 30:
 		print("  [MISSING] 도장·안내문 결정이 너무 적음")
 		ok = false
@@ -46,6 +56,9 @@ func _ready() -> void:
 	Game.day = Content.WEEK_END + 1
 	await _run_days(Content.WEEK_END + 1, Content.LAST_DAY)
 	print("ENDING 2: %s" % Game.ending()["title"])
+	if not Engine.get_meta("skeam_log").has("taemin_caught"):
+		print("  [MISSING] 도전 과제 taemin_caught")
+		ok = false
 	_expect("2회차", EXPECT_BAD)
 
 	# ── 나쁜 길: 봉투를 받으면 금요일 메모에 사고 소식, 엔딩은 파면 ──

@@ -235,6 +235,8 @@ func apply(o: Dictionary) -> void:
 	var f: String = o.get("flag", "")
 	if f != "":
 		flags[f] = true
+		if Skeam.FLAGS.has(f):
+			Skeam.unlock(Skeam.FLAGS[f])
 	var e: String = o.get("event", "")
 	if e != "":
 		events.append(e)

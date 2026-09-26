@@ -5,6 +5,13 @@ extends Control
 func _ready() -> void:
 	var e := Game.week_report() if Game.day == Content.WEEK_END and Game.fail_reason == "" else Game.ending()
 	%Title.text = e["title"]
+	var title: String = e["title"]
+	if title == "파면":
+		Skeam.unlock("fired")
+	elif title.begins_with("인사 평가"):
+		Skeam.unlock("two_weeks")
+		if title.begins_with("인사 평가 S"):
+			Skeam.unlock("grade_s")
 	var t := ""
 	for line in e["body"]:
 		if String(line).begins_with("["):

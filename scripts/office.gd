@@ -751,6 +751,11 @@ func _decide(action: String) -> void:
 		Game.requeue(c, o["sent_to"])
 	if o.has("requeue_reason"):
 		Game.requeue_reason(c, o["requeue_reason"])
+	if o.get("result") == "right":
+		if action == "process":
+			Skeam.unlock("first_process")
+		elif action.begins_with("transfer:"):
+			Skeam.unlock("right_dept")
 	Game.stats["served"] += 1
 	_leave()
 
@@ -803,6 +808,7 @@ func _calm(then: Dictionary) -> void:
 	c.erase("ignore")
 	c.erase("_ig")
 	c["lookup"] = Content._lookup_names(c)
+	Skeam.unlock("calm_down")
 	portrait.set_face(c["look"], c.get("mood", "normal"))
 	_slip("먹금 성공. 민원인이 진정하고 용건을 말한다.", SLIP_GOOD)
 	for line in c["intro"]:
@@ -1091,6 +1097,7 @@ func _judge(a: String, b: String) -> bool:
 	_say_them(f["reply"])
 	if not c.get("_found", false):
 		c["_found"] = true
+		Skeam.unlock("sharp_eye")
 		_slip("지적: " + f.get("label", Content.REASONS[f["reason"]]), SLIP_GOOD)
 	return true
 

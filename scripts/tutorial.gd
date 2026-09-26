@@ -81,6 +81,7 @@ func _build_box() -> void:
 	ok_btn.add_theme_font_size_override("font_size", 16)
 	ok_btn.pressed.connect(func():
 		if steps[step].get("finish", false):
+			Skeam.unlock("tut_done")
 			finish()
 		else:
 			confirmed = true)
