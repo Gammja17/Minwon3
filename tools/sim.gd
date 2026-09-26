@@ -89,9 +89,11 @@ func _check_gender(c: Dictionary, tag: String) -> void:
 		if L.has("g") and L.has("img") and ((L["img"] in CT.CITIZENS_F) != (L["g"] == "f")):
 			_fail(tag, "얼굴 %s와 성별 %s가 다름" % [L["img"], L["g"]])
 	var said := {"남편": "m", "아내": "f", "어머니": "f", "아버지": "m", "아들": "m", "딸": "f"}
-	var line: String = String(c.get("intro", [""])[0]) if not c.get("intro", []).is_empty() else ""
 	for w in said:
-		if line.begins_with(w + " "):
+		var hit := false
+		for line in c.get("intro", []):
+			hit = hit or String(line).begins_with(w + " ")
+		if hit:
 			for d in c.get("docs", []):
 				if d["kind"] == "form" and c["records"].has(d["subject"]):
 					var sl: Dictionary = c["records"][d["subject"]].get("look", {})
