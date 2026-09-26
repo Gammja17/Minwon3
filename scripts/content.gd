@@ -250,20 +250,39 @@ const LOOKS := {
 
 # 무작위 민원인 얼굴 모음 (나이대별). 그림이 없으면 코드로 그린 얼굴을 쓴다.
 const CITIZENS := [
-	["cit01", "cit02", "cit03", "cit04", "cit05", "cit06", "cit17", "cit18", "cit19"],   # 20~30대
-	["cit07", "cit08", "cit09", "cit10", "cit11", "cit12", "cit20", "cit21", "cit22"],   # 40~50대
-	["cit13", "cit14", "cit15", "cit16", "cit23", "cit24"],                              # 60대 이상
+	["cit01", "cit02", "cit03", "cit04", "cit05", "cit06", "cit17", "cit18", "cit19",
+		"cit25", "cit26", "cit27", "cit28", "cit29", "cit30", "cit31", "cit32", "cit47", "cit48"],   # 20~30대
+	["cit07", "cit08", "cit09", "cit10", "cit11", "cit12", "cit20", "cit21", "cit22",
+		"cit33", "cit34", "cit35", "cit36", "cit37", "cit38", "cit39", "cit40"],                     # 40~50대
+	["cit13", "cit14", "cit15", "cit16", "cit23", "cit24", "cit41", "cit42", "cit43", "cit44", "cit45", "cit46"],   # 60대 이상
 ]
 
+## 여자 얼굴 (나머지는 남자)
+const CITIZENS_F := ["cit01", "cit03", "cit05", "cit07", "cit09", "cit11", "cit13", "cit15", "cit18", "cit20", "cit23",
+	"cit26", "cit28", "cit30", "cit32", "cit34", "cit36", "cit40", "cit42", "cit44", "cit46", "cit48"]
 const SURNAMES := ["김", "이", "박", "최", "정", "강", "조", "윤", "장", "임", "한", "오", "서", "신", "권", "황", "안", "송", "류", "홍"]
-const GIVEN := ["민준", "서연", "지훈", "수빈", "영수", "정희", "미경", "상철", "은지", "현우", "동현", "혜진", "경자", "순희", "성민", "지영", "태호", "유진", "재석", "명숙", "광수", "보람", "하늘", "예린", "도윤", "승훈", "나래", "용철", "금순", "정민", "다은", "석진", "혜숙", "종원", "소영", "기범"]
+## 이름은 성별과 태어난 세대에 맞춘다 [1965년 이전, 1966~1987년, 1988년 이후]
+const GIVEN := {
+	"m": [["영수", "상철", "광수", "용철", "종원", "기범", "석진", "만호", "정식", "병철"],
+		["성민", "동현", "재석", "태호", "승훈", "정민", "현철", "진우", "상훈", "경호"],
+		["민준", "지훈", "현우", "준서", "시우", "건우", "예준", "우진", "태윤", "도훈"]],
+	"f": [["경자", "순희", "명숙", "금순", "혜숙", "정희", "영자", "말순", "옥순", "복희"],
+		["미경", "지영", "혜진", "은정", "소영", "선영", "보람", "수정", "정아", "민경"],
+		["서연", "수빈", "은지", "예린", "다은", "나래", "하늘", "지우", "채원", "서윤"]],
+}
 const SWAP_SYLLABLES := ["주", "정", "수", "진", "호", "희", "영", "석", "민", "경"]
 const STORY_NAMES := ["김도현", "문옥자", "박은비", "김태식", "오승민", "조현수", "차동훈", "윤서영", "노진수", "정다운", "한지우", "박달수", "이정숙", "오세린", "최준호", "김순자", "박영철", "장만식", "장만철", "양철민", "이미영", "윤성호", "송경아", "송기철", "정태민", "최만수", "남궁현", "남궁순애", "오민재", "황보창식", "김하늘", "도재혁", "윤도윤", "서미진"]
 
 const PURPOSES := ["회사에", "은행에", "학교에", "보험 회사에", "전세 대출 서류로"]
 const SEAL_PURPOSES := ["차를 팔려고요.", "부동산 계약이 있어서요.", "은행에서 달래서요."]
-const RELATIONS := [["배우자", "남편", 0], ["배우자", "아내", 0], ["자녀", "어머니", -28], ["자녀", "아버지", -30], ["형제", "동생", 4], ["부모", "아들", 28], ["부모", "딸", 27]]
-const PROXY_EXCUSES := ["거동이 불편하셔서 제가 대신 왔어요.", "회사 때문에 못 오셔서 제가 왔어요.", "급하게 필요하다고 해서요."]
+## [서류상 관계, 신청인이 부르는 말, 나이 차, 대상자 성별, 신청인이 이래야 함(빈칸은 아무나)]
+const RELATIONS := [["배우자", "남편", 0, "m", "f"], ["배우자", "아내", 0, "f", "m"], ["자녀", "어머니", -28, "f", ""], ["자녀", "아버지", -30, "m", ""],
+	["형제", "동생", 4, "", ""], ["부모", "아들", 28, "m", ""], ["부모", "딸", 27, "f", ""]]
+## 윗사람(부모)이면 높여 말하고, 배우자·자녀·동생이면 높이지 않는다
+const PROXY_EXCUSES := {
+	"up": ["거동이 불편하셔서 제가 대신 왔어요.", "회사 때문에 못 오셔서 제가 왔어요.", "급하게 필요하시다고 해서요.", "요양원에 계셔서 제가 왔어요."],
+	"down": ["몸이 안 좋아서 제가 대신 왔어요.", "회사 때문에 못 와서 제가 왔어요.", "급하게 필요하다고 해서요.", "해외 출장 중이라 제가 대신 왔어요."],
+}
 const RANTS := ["왜 이렇게 오래 걸려요? 점심시간에 잠깐 나왔단 말이에요!", "아까 저 사람은 금방 해 주더니 나는 왜 이렇게 기다리게 해?", "공무원은 철밥통이라 이렇게 느긋한가 봐?",
 	"번호표 기계가 고장 났나, 왜 내 번호만 안 불러요!", "주차할 데도 없고 엘리베이터도 고장이고, 여긴 되는 게 뭐예요?", "인터넷으로 떼라면서요? 그게 안 되니까 온 거잖아요!"]
 
@@ -1179,11 +1198,11 @@ static func make_routine(day: int, rng: RandomNumberGenerator, outage := false) 
 ## 확정일자: 전세·월세 계약서를 들고 온 임차인 (2주차부터)
 static func _make_lease(day: int, rng: RandomNumberGenerator) -> Dictionary:
 	var year := rng.randi_range(1970, 2003)
-	var me := {"name": _name(rng), "birth": _birth(rng, year), "look": _look(rng, year)}
+	var me := _person(rng, year)
 	var addr := _addr(rng, OUR_DONG)
-	var landlord := _name(rng)
+	var landlord := _name(rng, "", "", rng.randi_range(1950, 1980))
 	while landlord == me["name"]:
-		landlord = _name(rng)
+		landlord = _name(rng, "", "", rng.randi_range(1950, 1980))
 	var lease := {"kind": "lease", "landlord": landlord, "tenant": me["name"], "tenant_birth": me["birth"], "addr": addr,
 		"deposit": _pick(["8천만 원", "1억 2천만 원", "2억 원", "3천만 원 / 월 45만 원", "1천만 원 / 월 60만 원"], rng),
 		"date": "2026.%02d.%02d" % [rng.randi_range(9, 10), rng.randi_range(1, 20)]}
@@ -1223,7 +1242,7 @@ static func _make_lease(day: int, rng: RandomNumberGenerator) -> Dictionary:
 ## 인감 신고부터 하고 이어서 인감증명서를 떼 가는 본인 (두 단계)
 static func _make_seal_reg(day: int, rng: RandomNumberGenerator) -> Dictionary:
 	var year := rng.randi_range(1950, 2002)
-	var me := {"name": _name(rng), "birth": _birth(rng, year), "look": _look(rng, year)}
+	var me := _person(rng, year)
 	var addr := _addr(rng, OUR_DONG)
 	var id_doc := id_card(me["name"], me["birth"], addr, me["look"], false, "20%02d.%02d.%02d" % [rng.randi_range(10, 25), rng.randi_range(1, 12), rng.randi_range(1, 28)])
 	var reg := {"kind": "seal_reg", "name": me["name"], "birth": me["birth"], "addr": addr, "seal": "새로 새긴 인감도장"}
@@ -1289,13 +1308,14 @@ static func _add_next(c: Dictionary, kind: String, rng: RandomNumberGenerator) -
 		nx["correct"] = "process"
 	else:
 		# 따로 사는 가족 서류를 위임장 없이: 반려해야 한다
-		var rel: Array = _pick(RELATIONS, rng)
+		var me_g: String = c["look"].get("g", "m")
+		var rel: Array = _pick(_relations_for(me_g), rng)
 		var seal := rng.randf() < 0.5
-		var surname: String = me_name.left(1) if rel[0] != "배우자" else ""
-		var sname := _name(rng, surname)
-		while sname == me_name:
-			sname = _name(rng, surname)
+		var surname := _family_surname(me_name, me_g, rel[1])
 		var sy := int(me_birth.left(4)) + int(rel[2]) + rng.randi_range(-3, 3)
+		var sname := _name(rng, surname, rel[3], sy)
+		while sname == me_name:
+			sname = _name(rng, surname, rel[3], sy)
 		var sbirth := _birth(rng, sy)
 		var recs: Dictionary = c["records"].duplicate(true)
 		recs[sname] = record(sbirth, _addr(rng, OUR_DONG), [[sname, "본인"]], true)
@@ -1339,9 +1359,10 @@ static func _make_outage_wait(base: Dictionary) -> Dictionary:
 ## 신분증을 잃어버렸거나 망가진 사람: 신분증이 없으니 전산 사진이 유일한 확인 수단이다
 static func _make_reissue(day: int, rng: RandomNumberGenerator) -> Dictionary:
 	var year := rng.randi_range(1945, 2006)
-	var name := _name(rng)
-	var birth := _birth(rng, year)
-	var look := _look(rng, year)
+	var p := _person(rng, year)
+	var name: String = p["name"]
+	var birth: String = p["birth"]
+	var look: Dictionary = p["look"]
 	var addr := _addr(rng, OUR_DONG)
 	var cause: String = _pick(["분실", "분실", "훼손"], rng)
 	var doc := {"kind": "reissue", "name": name, "birth": birth, "addr": addr, "cause": cause}
@@ -1400,9 +1421,11 @@ static func _pick(arr: Array, rng: RandomNumberGenerator) -> Variant:
 	return arr[rng.randi_range(0, arr.size() - 1)]
 
 
-static func _name(rng: RandomNumberGenerator, surname := "") -> String:
+static func _name(rng: RandomNumberGenerator, surname := "", gender := "", year := 1980) -> String:
+	var g: String = gender if gender != "" else _pick(["m", "f"], rng)
+	var era := 0 if year <= 1965 else (1 if year <= 1987 else 2)
 	while true:
-		var n: String = (surname if surname != "" else _pick(SURNAMES, rng)) + _pick(GIVEN, rng)
+		var n: String = (surname if surname != "" else _pick(SURNAMES, rng)) + _pick(GIVEN[g][era], rng)
 		if not STORY_NAMES.has(n):
 			return n
 	return ""
@@ -1419,15 +1442,33 @@ static func _addr(rng: RandomNumberGenerator, dong: String) -> String:
 	return a
 
 
-static func _look(rng: RandomNumberGenerator, year: int) -> Dictionary:
-	var fem := rng.randf() < 0.5
+static func _person(rng: RandomNumberGenerator, year: int, gender := "", surname := "") -> Dictionary:
+	var g: String = gender if gender != "" else _pick(["m", "f"], rng)
+	return {"name": _name(rng, surname, g, year), "birth": _birth(rng, year), "look": _look(rng, year, g), "g": g}
+
+
+## 가족의 성: 아버지·형제는 같은 성, 자녀는 아버지 성을 따른다. 어머니·배우자는 대개 다르다.
+static func _family_surname(me_name: String, me_g: String, said: String) -> String:
+	if said in ["아버지", "동생"] or (said in ["아들", "딸"] and me_g == "m"):
+		return me_name.left(1)
+	return ""
+
+
+static func _relations_for(me_g: String) -> Array:
+	return RELATIONS.filter(func(r): return r[4] == "" or r[4] == me_g)
+
+
+static func _look(rng: RandomNumberGenerator, year: int, gender := "") -> Dictionary:
+	var g: String = gender if gender != "" else _pick(["m", "f"], rng)
+	var fem := g == "f"
 	var age := 0 if year >= 1988 else (1 if year >= 1963 else 2)
 	var hair: int = _pick([3, 4], rng) if age == 2 else _pick([0, 0, 1, 1, 2, 5], rng)
 	var style: int = _pick([1, 2, 4], rng) if fem else _pick([0, 1, 3], rng)
 	if style == 3 and age == 0:
 		style = 0
 	return {"skin": rng.randi_range(0, 3), "hair": hair, "style": style, "glasses": rng.randf() < 0.3,
-		"age": age, "shape": rng.randi_range(0, 2), "shirt": rng.randi_range(0, 7), "img": _pick(CITIZENS[age], rng)}
+		"age": age, "shape": rng.randi_range(0, 2), "shirt": rng.randi_range(0, 7), "g": g,
+		"img": _pick(CITIZENS[age].filter(func(x): return (x in CITIZENS_F) == fem), rng)}
 
 
 ## 같은 사람으로 보이지 않을 만큼 다른 얼굴
@@ -1440,7 +1481,8 @@ static func _other_look(l: Dictionary, rng: RandomNumberGenerator) -> Dictionary
 		o["hair"] = (int(l["hair"]) + rng.randi_range(1, 2)) % 3
 	o["glasses"] = not l["glasses"]
 	if l.has("img"):
-		var same_age: Array = CITIZENS[int(l["age"])].filter(func(x): return x != l["img"])
+		var fem: bool = l["img"] in CITIZENS_F
+		var same_age: Array = CITIZENS[int(l["age"])].filter(func(x): return x != l["img"] and (x in CITIZENS_F) == fem)
 		o["img"] = _pick(same_age, rng)
 	return o
 
@@ -1464,7 +1506,7 @@ static func _mutate_birth(b: String, rng: RandomNumberGenerator) -> String:
 
 static func _make_ours(kind: String, day: int, rng: RandomNumberGenerator, outage := false) -> Dictionary:
 	var year := rng.randi_range(1945, 2004)
-	var me := {"name": _name(rng), "birth": _birth(rng, year), "look": _look(rng, year)}
+	var me := _person(rng, year)
 	var moving := kind == "move"
 	me["addr"] = _addr(rng, _pick(OTHER_DONGS, rng) if moving else OUR_DONG)
 	var subject := me
@@ -1474,15 +1516,15 @@ static func _make_ours(kind: String, day: int, rng: RandomNumberGenerator, outag
 	var proxy_kind := kind.begins_with("proxy")
 	var seal_kind := kind == "seal" or kind == "proxy_seal"
 	if proxy_kind:
-		var rel: Array = _pick(RELATIONS, rng)
+		var rel: Array = _pick(_relations_for(me["g"]), rng)
 		relation = rel[0]
 		said = rel[1]
 		var sy := year + int(rel[2]) + rng.randi_range(-3, 3)
-		var surname: String = me["name"].left(1) if relation != "배우자" else ""
-		var sname := _name(rng, surname)
-		while sname == me["name"]:
-			sname = _name(rng, surname)
-		subject = {"name": sname, "birth": _birth(rng, sy), "addr": _addr(rng, OUR_DONG), "look": _look(rng, sy)}
+		var surname := _family_surname(me["name"], me["g"], said)
+		var who := _person(rng, sy, rel[3], surname)
+		while who["name"] == me["name"]:
+			who = _person(rng, sy, rel[3], surname)
+		subject = {"name": who["name"], "birth": who["birth"], "addr": _addr(rng, OUR_DONG), "look": who["look"]}
 		household = rng.randf() < 0.4
 		if household:
 			subject["addr"] = me["addr"]
@@ -1529,8 +1571,8 @@ static func _make_ours(kind: String, day: int, rng: RandomNumberGenerator, outag
 		"chobon": intro = [_pick(["초본 한 통 부탁드려요.", "주민등록초본 떼러 왔어요. %s 내야 한대서요." % _pick(PURPOSES, rng)], rng)]
 		"seal": intro = ["인감증명서 한 통 떼러 왔어요. %s" % _pick(SEAL_PURPOSES, rng)]
 		"move": intro = [_pick(["이사 와서 전입신고 하러 왔어요.", "전입신고요. 지난주에 이사했어요."], rng)]
-		"proxy_deungbon": intro = ["%s 등본 좀 떼 주세요. %s" % [said, _pick(PROXY_EXCUSES, rng)]]
-		"proxy_seal": intro = ["%s 인감증명서 좀 떼 주세요. %s" % [said, _pick(PROXY_EXCUSES, rng)]]
+		"proxy_deungbon": intro = ["%s 등본 좀 떼 주세요. %s" % [said, _pick(PROXY_EXCUSES["up" if said in ["어머니", "아버지"] else "down"], rng)]]
+		"proxy_seal": intro = ["%s 인감증명서 좀 떼 주세요. %s" % [said, _pick(PROXY_EXCUSES["up" if said in ["어머니", "아버지"] else "down"], rng)]]
 	var c := {"name": me["name"], "look": me["look"], "mood": "normal", "intro": intro, "again": intro[0],
 		"records": records, "correct": "process", "reason": "",
 		"asks": [{"q": "신분증 사진이 본인 맞으세요?", "a": _pick(["네, 저 맞아요.", "네. 사진이 좀 잘 나왔죠?"], rng)}]}
@@ -1671,7 +1713,8 @@ static func _make_ours(kind: String, day: int, rng: RandomNumberGenerator, outag
 static func _make_transfer(rng: RandomNumberGenerator) -> Dictionary:
 	var t: Array = _pick(TRANSFERS, rng)
 	var year := rng.randi_range(1948, 2004)
-	return {"name": _name(rng), "look": _look(rng, year), "mood": "normal", "intro": t[1].duplicate(), "again": t[1][0],
+	var p := _person(rng, year)
+	return {"name": p["name"], "look": p["look"], "mood": "normal", "intro": t[1].duplicate(), "again": t[1][0],
 		"docs": [], "records": {}, "lookup": [], "correct": "transfer:" + t[0], "reason": ""}
 
 

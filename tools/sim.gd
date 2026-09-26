@@ -80,7 +80,29 @@ func _calm(c: Dictionary) -> Dictionary:
 	return r
 
 
+## 얼굴·이름·관계 말의 성별이 서로 맞는지
+func _check_gender(c: Dictionary, tag: String) -> void:
+	var looks: Array = [c.get("look", {})]
+	for n in c.get("records", {}):
+		looks.append(c["records"][n].get("look", {}))
+	for L in looks:
+		if L.has("g") and L.has("img") and ((L["img"] in CT.CITIZENS_F) != (L["g"] == "f")):
+			_fail(tag, "얼굴 %s와 성별 %s가 다름" % [L["img"], L["g"]])
+	var said := {"남편": "m", "아내": "f", "어머니": "f", "아버지": "m", "아들": "m", "딸": "f"}
+	var line: String = String(c.get("intro", [""])[0]) if not c.get("intro", []).is_empty() else ""
+	for w in said:
+		if line.begins_with(w + " "):
+			for d in c.get("docs", []):
+				if d["kind"] == "form" and c["records"].has(d["subject"]):
+					var sl: Dictionary = c["records"][d["subject"]].get("look", {})
+					if sl.has("g") and sl["g"] != said[w]:
+						_fail(tag, "'%s'라고 부르는데 대상자 성별이 %s" % [w, sl["g"]])
+					if w in ["남편", "아내"] and c["look"].get("g", "") == said[w]:
+						_fail(tag, "'%s'라고 부르는 신청인 성별이 같음" % w)
+
+
 func _check(c: Dictionary, day: int, tag: String) -> void:
+	_check_gender(c, tag)
 	if c.has("next"):
 		if c["correct"] in ["reject", "guard"] or String(c["correct"]).begins_with("transfer:"):
 			_fail(tag, "다음 단계가 있는데 첫 단계 정답이 %s" % c["correct"])
