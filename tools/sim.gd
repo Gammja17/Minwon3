@@ -9,7 +9,7 @@ const STORY_DAYS := {"d1_first": 1, "d1_dalsu": 1, "d1_passport": 1, "d1_photo":
 	"d5_auditor": 5, "d5_dalsu": 5,
 	"w2_jiwoo": 6, "w2_reissue": 6, "w2_mansu": 6, "w2_taemin": 7, "w2_mee_again": 7, "w2_mee": 8, "w2_noh_favor": 8,
 	"w2_seoyoung": 9, "w2_dalsu": 9, "w2_donghun": 9, "w2_councilor": 10,
-	"d4_haneul": 4, "w2_minjae": 6, "w2_changsik": 7, "w2_jaehyuk": 8, "w2_minjae2": 10}
+	"d3_doyun": 3, "d3_doyun_mom": 3, "d4_haneul": 4, "w2_minjae": 6, "w2_changsik": 7, "w2_jaehyuk": 8, "w2_minjae2": 10}
 const FLAG_SETS := [
 	{},
 	{"dalsu_ejected": true, "mee_helped": true, "scam_caught": true, "envelope_refused": true, "dalsu_done": true,

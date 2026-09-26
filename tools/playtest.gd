@@ -7,7 +7,7 @@ const OFFICE := preload("res://scenes/office.tscn")
 const EXPECT_GOOD := ["dalsu_served", "grandma_helped", "mee_helped", "declined_gift", "scam_caught", "audit_pass",
 	"dalsu_done", "envelope_refused", "noh_asked", "mom_helped",
 	"jiwoo_moved", "okja_done", "mansu_thanked", "mee_extended", "noh_refused", "seoyoung_served", "donghun_left", "councilor_refused",
-	"minjae_fixed", "changsik_refused", "haneul_ok", "jaehyuk_ok", "minjae_saved"]
+	"minjae_fixed", "changsik_refused", "haneul_ok", "jaehyuk_ok", "minjae_saved", "doyun_done"]
 const EXPECT_BAD := ["taemin_caught", "mee_second", "dalsu_done", "donghun_left", "seoyoung_served"]
 
 var seen := {}
@@ -44,7 +44,7 @@ func _ready() -> void:
 	print("seen=%s ui_decisions=%d" % [seen, ui_decisions])
 	var got: Array = Engine.get_meta("skeam_log")
 	for id in ["first_process", "sharp_eye", "right_dept", "calm_down", "dalsu_served", "scam_caught", "envelope_refused", "councilor_refused", "audit_pass",
-			"minjae_saved", "haneul_ok", "jaehyuk_ok", "fix_on_spot", "note_back"]:
+			"minjae_saved", "haneul_ok", "jaehyuk_ok", "fix_on_spot", "note_back", "doyun_done"]:
 		if not got.has(id):
 			print("  [MISSING] 도전 과제 %s" % id)
 			ok = false
@@ -72,6 +72,23 @@ func _ready() -> void:
 	var fired: bool = Game.week_report()["title"] == "파면"
 	print("bribe path: memo=%s fired=%s" % [bad_memo, fired])
 	ok = ok and bad_memo and fired
+
+	# ── 엔딩 도전 과제: 완주 · S 평가 · 파면 ──
+	Engine.set_meta("skeam_log", [])
+	for case in [[{}, ["two_weeks", "grade_s"]], [{"bribe_taken": true}, ["fired"]]]:
+		Game.new_game()
+		Game.day = Content.LAST_DAY
+		Game.rep = 100
+		Game.flags = case[0]
+		var en: Control = load("res://scenes/ending.tscn").instantiate()
+		add_child(en)
+		await get_tree().process_frame
+		en.queue_free()
+		for id in case[1]:
+			if not Engine.get_meta("skeam_log").has(id):
+				print("  [MISSING] 엔딩 도전 과제 %s" % id)
+				ok = false
+	print("ending achievements: %s" % [Engine.get_meta("skeam_log")])
 
 	# ── 저장하고 이어 하기 ──
 	Game.new_game()
@@ -104,6 +121,25 @@ func _ready() -> void:
 	var need := panel.get_combined_minimum_size().y
 	print("evening panel min height %.0f / %.0f" % [need, panel.size.y])
 	ok = ok and need <= panel.size.y + 1
+	ev.queue_free()
+	# 소문이 긴 날: 사건 두 줄에 친구와 저녁
+	for pair in [[4, {"haneul_missed": true}], [6, {}], [7, {"minjae_erased": true}], [8, {"jaehyuk_filmed": true, "envelope_refused": true}]]:
+		Game.new_game()
+		Game.day = pair[0]
+		Game.flags = pair[1]
+		Game.events = ["긴 사건 한 줄 ".repeat(8), "두 번째 사건 ".repeat(8)]
+		var e2: Control = load("res://scenes/evening.tscn").instantiate()
+		add_child(e2)
+		await get_tree().process_frame
+		e2._choose("friend")
+		await get_tree().process_frame
+		await get_tree().process_frame
+		var p2: Control = e2.get_node("Panel")
+		var n2 := p2.get_combined_minimum_size().y
+		if n2 > p2.size.y + 1:
+			print("  [FAIL] %d일 저녁 화면이 넘침 %.0f / %.0f" % [pair[0], n2, p2.size.y])
+			ok = false
+		e2.queue_free()
 	print("PLAYTEST " + ("OK" if ok else "FAIL"))
 	get_tree().quit()
 

@@ -279,6 +279,19 @@ func _note_and_return(c: Dictionary, why: String) -> Dictionary:
 	return note
 
 
+## 이야기 인물이 메모를 붙이고 가고, 그 메모 주인(다른 사람일 수도 있다)이 오늘 늦게 온다
+func story_note(ln: Dictionary) -> Dictionary:
+	note_seq += 1
+	var t := int(clock)
+	var note := {"id": note_seq, "name": ln["name"], "what": ln["what"], "time": "%02d:%02d" % [t / 60, t % 60]}
+	notes.append(note)
+	var r := Content.story(ln["story"], flags.merged({"_rep": rep}))
+	r["note_id"] = note_seq
+	queue.append(r)
+	waiting += 1
+	return note
+
+
 func _revisit_case(c: Dictionary) -> Dictionary:
 	var r := _returning(c)
 	r.merge(c["_valid"], true)
@@ -627,6 +640,10 @@ func _epilogue() -> Array:
 		out.append("차동훈은 경찰에 넘겨졌고, 윤서영 씨의 전 남편에게는 접근금지 명령이 내려졌다. 윤서영 씨는 요즘 밤에 창문을 열어 둔다.")
 	elif flags.get("envelope_refused", false) or flags.get("envelope_guarded", false):
 		out.append("윤서영 씨는 자기 주소를 캐러 왔던 사람이 있었다는 걸 모른다. 그걸로 됐다.")
+	if flags.get("doyun_done", false):
+		out.append("윤도윤 어린이는 학교 숙제 '우리 동네 사람들'에 3번 창구를 그렸다. 그림 속 창구 유리에는 노란 메모가 붙어 있다.")
+	elif flags.get("doyun_cried", false):
+		out.append("윤도윤 어린이는 한동안 주민센터 앞을 지날 때마다 엄마 손을 꼭 잡았다.")
 	if flags.get("minjae_saved", false):
 		out.append("오민재 씨는 경매에서 보증금을 대부분 돌려받았다. 확정일자 도장이 찍힌 계약서를 액자에 넣어 뒀다고 한다.")
 	elif flags.get("minjae_erased", false):

@@ -732,6 +732,8 @@ func _decide(action: String) -> void:
 		_escalate(c["ignore"])
 		return
 	Game.apply(o)
+	if o.has("leave_note"):
+		_add_note_view(Game.story_note(o["leave_note"]), true)
 	match action:
 		"guard":
 			Sfx.play("bell")

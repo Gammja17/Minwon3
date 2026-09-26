@@ -56,6 +56,9 @@ achievements:
   - id: councilor_refused
     name: "의원님도 규정대로"
     desc: "구의원의 부탁을 규정대로 거절하세요"
+  - id: doyun_done
+    name: "퇴근길의 엄마"
+    desc: "혼자 온 초등학생의 엄마에게 전화해, 엄마가 직접 등본을 떼 가게 하세요"
   - id: minjae_saved
     name: "보증금 지킴이"
     desc: "전세 계약서에 확정일자를 받은 오민재 씨가 보증금을 지키게 하세요"
