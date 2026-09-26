@@ -17,6 +17,7 @@ SKEAM(KING 동아리의 게임 상점, https://kh32-7.github.io/skeam/)에 웹�
 | 파일 | 크기 | 내용 |
 |---|---|---|
 | `game.yml` | | 제목, 가격, 소개, 도전 과제 14개 |
+| `skeam-등록양식.json` | | 등록 폼의 [빠르게 채우기 → 양식 붙여넣기]에 넣는 JSON |
 | `about.md` | | 상점 본문 |
 | `header.jpg` | 920×430 | |
 | `capsule.jpg` | 600×900 | |
@@ -24,7 +25,7 @@ SKEAM(KING 동아리의 게임 상점, https://kh32-7.github.io/skeam/)에 웹�
 | `screenshots/1~5.jpg` | 1280×720 | |
 
 그림은 `python tools/store_art.py <스크린샷 폴더>` 로 다시 만든다 (스크린샷은 `tools/shot.gd`).
-SKEAM 저장소에 `games/minwon-3/` 폴더로 이 파일들을 넣는 PR을 보내면 머지된 뒤 상점에 올라간다.
+등록은 사이트의 게임 등록 폼으로 한다 (게임 id `minwon-3`). 올라간 뒤 SKEAM 저장소의 `games/minwon-3/game.yml` 에 `store/game.yml` 의 `achievements:` 를 넣는 PR을 보낸다.
 
 ## 확인
 

@@ -7,8 +7,8 @@ discount: 50
 play_url: "https://gammja17.github.io/Minwon3/"
 repo: "https://github.com/Gammja17/Minwon3"
 version: "1.0.0"
-tags: ["시뮬레이션", "스토리", "퍼즐", "픽셀 그래픽"]
-short: "햇살동 주민센터 신규 주무관의 첫 2주. 서류를 대조하고 도장을 쾅! 진상은 먹금하고, 남의 일은 알맞은 부서로. Papers, Please풍 민원 창구 게임"
+tags: ["취미 및 직업 시뮬레이션", "퍼즐", "풍부한 스토리", "캐주얼", "분위기 있는"]
+short: "햇살동 주민센터 신규 주무관의 첫 2주. 서류를 대조하고 도장을 쾅! 진상은 먹금, 남의 일은 알맞은 부서로."
 controls: "마우스: 서류 끌기, 도장 집어서 찍기, 오른쪽 클릭으로 도장 지우기, 돋보기로 안 맞는 두 곳 누르기 / Esc: 도장 내려놓기"
 ai_tools: ["Claude Code"]
 dev_period: "1일"
