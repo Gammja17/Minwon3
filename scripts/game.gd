@@ -1,5 +1,5 @@
 extends Node
-## 한 주 동안의 상태: 평판, 벌점, 스트레스, 이야기 플래그, 오늘의 대기열.
+## 3주 동안의 상태: 평판, 벌점, 스트레스, 잔고, 책상 위 물건, 이야기 플래그, 오늘의 대기열.
 
 const DAY_START := 540.0   # 09:00
 const DAY_END := 1080.0    # 18:00
@@ -49,6 +49,10 @@ var stock_rng := RandomNumberGenerator.new()
 var dalsu_used := false    # 박달수 씨 대기실 도우미 (하루 한 번)
 var notes: Array = []      # 창구 유리에 붙은 "좀 이따 다시 올게요" 메모 [{id, name, what, time}]
 var note_seq := 0
+var overdraft := 0         # 마이너스 통장 한도 (0이면 통장이 없다)
+var desk_items: Array = [] # 책상 위에 쌓인 물건 [{kind, x, y, ...}] (날이 바뀌어도 남는다)
+const OVERDRAFT_LIMIT := 2000000
+const OVERDRAFT_RATE := 0.07
 
 ## 저장: 아침마다(업무 메모를 펼 때) 한 번, 고른 서류철(슬롯)에. 웹판에서는 SKEAM이 계정 클라우드에 올린다.
 const OLD_SAVE := "user://save.txt"
@@ -57,7 +61,7 @@ var slot := 1
 var hints_left := 3      # 옆자리 노 주무관에게 물어볼 수 있는 횟수 (하루)
 var hints_used := 0
 const SAVE_KEYS := ["day", "rep", "pen", "stress", "study", "flags", "money", "dept", "noh", "future", "notes", "note_seq",
-	"stocks", "stock_news", "stock_profit", "slack_caught"]
+	"stocks", "stock_news", "stock_profit", "slack_caught", "overdraft", "desk_items"]
 
 
 func new_game() -> void:
@@ -82,17 +86,36 @@ func new_game() -> void:
 	stock_news = []
 	stock_profit = 0
 	slack_caught = 0
+	overdraft = 0
+	desk_items = []
 	stock_rng.randomize()
+	roll_cast()
 	start_day()
+
+
+## 판마다 달라지는 것: 이야기 인물의 속사정, 나오는 날, 수배자의 얼굴. 이미 정해진 건 그대로 둔다(예전 저장).
+func roll_cast() -> void:
+	for k in Content.VARIANTS:
+		if not flags.has("v_" + k):
+			flags["v_" + k] = rng.randi_range(0, int(Content.VARIANTS[k]) - 1)
+	for id in Content.FLOATERS:
+		if not flags.has("day_" + id):
+			flags["day_" + id] = rng.randi_range(int(Content.FLOATERS[id][0]), int(Content.FLOATERS[id][1]))
+	if not flags.has("v_seed"):
+		flags["v_seed"] = rng.randi()
+	if not flags.has("v_wanted"):
+		flags["v_wanted"] = Content.make_wanted(rng)
 
 
 func start_day() -> void:
 	clock = DAY_START
 	waiting = 3 + (day - 1) % 5 + 1
 	ticket = 0
-	queue = Content.SEQUENCES[day].duplicate()
+	queue = Content.day_queue(day, flags, rng)
 	if day == 5 and noh <= 30:
 		queue.insert(1, "N")
+	if day == Content.RUSH_DAY:
+		waiting += 5   # 월말: 번호표 기계 앞에 아침부터 줄이 길다
 	for r in future.get(day, []):
 		queue.insert(rng.randi_range(1, queue.size()), r)
 	future.erase(day)
@@ -158,6 +181,7 @@ func load_game(s := -1) -> bool:
 			set(k, d[k])
 	rng.seed = d.get("rng_seed", rng.seed)
 	rng.state = d.get("rng_state", rng.state)
+	roll_cast()   # 이 기능이 생기기 전의 저장에도 판마다 다른 몫을 채운다
 	return true   # 하루 시작(start_day)은 업무 메모의 [창구로 가기]에서
 
 
@@ -178,7 +202,7 @@ func _read_save(s: int) -> Variant:
 
 
 func week() -> int:
-	return 1 if day <= Content.WEEK_END else 2
+	return 1 if day <= Content.WEEK_END else (2 if day <= Content.WEEK2_END else 3)
 
 
 ## 스트레스가 끝까지 차면 한 주에 한 번은 조퇴로 버틴다
@@ -188,6 +212,36 @@ func can_leave_early() -> bool:
 
 func d_day() -> int:
 	return Content.EXAM_DATE - int(Content.TODAY[day - 1])
+
+
+# ─────────────────────────── 돈 ───────────────────────────
+
+## 쓸 수 있는 돈인지: 잔고에 마이너스 통장 한도까지 더해서 본다
+func can_spend(v: int) -> bool:
+	return money - v >= -overdraft
+
+
+func spend(v: int) -> bool:
+	if not can_spend(v):
+		return false
+	money -= v
+	return true
+
+
+## 햇살은행 공무원 마이너스 통장. 신규라도 공무원이라 바로 나온다.
+func open_overdraft() -> void:
+	if overdraft > 0:
+		return
+	overdraft = OVERDRAFT_LIMIT
+	flags["overdraft"] = true
+	add_stress(3)
+
+
+## 잔고 표시: 마이너스면 통장에서 끌어다 쓴 돈
+func money_text() -> String:
+	if money < 0:
+		return "마이너스 %s" % won(-money)
+	return won(money)
 
 
 func tick(delta: float) -> void:
@@ -477,7 +531,11 @@ func close_day() -> void:
 				future[day + 1].append(r)
 			else:
 				remove_note(int(e["note_id"]))
-	money -= DAILY_COST
+	if can_spend(DAILY_COST):
+		money -= DAILY_COST
+	else:
+		add_stress(6)
+		events.append("잔고가 바닥나서 점심을 굶었다. 교통카드 잔액으로 겨우 집에 왔다.")
 	if waiting > 0:
 		rep = clampi(rep - waiting / 3, 0, 100)
 		events.append("마감 때까지 대기 중이던 %d명을 그냥 돌려보냈다." % waiting)
@@ -513,7 +571,7 @@ func evening(choice: String) -> String:
 			return "집에 가서 씻고 일찍 누웠다. 오랜만에 푹 잤다."
 		"friend":
 			add_stress(-20)
-			money -= 20000
+			spend(20000)
 			return Content.rumor(day, flags)
 		"overtime":
 			add_stress(10)
@@ -521,9 +579,9 @@ func evening(choice: String) -> String:
 			return "불 꺼진 사무실에 남아 밀린 서류를 정리했다. 시간외수당 3만 5천 원이 붙는다."
 		"date":
 			add_stress(-30)
-			money -= 25000
+			spend(25000)
 			flags["love_dinner"] = true
-			return "4번 창구 서하준과 동네 국숫집에 갔다. 창구 얘기, 이상한 민원인 얘기를 하다 보니 국수가 다 불었다. 헤어질 때 하준이 \"내일 마지막 날 잘해요\"라고 했다."
+			return "4번 창구 서하준과 동네 국숫집에 갔다. 창구 얘기, 이상한 민원인 얘기를 하다 보니 국수가 다 불었다. 헤어질 때 하준이 \"내일 금요일도 힘내요\"라고 했다."
 		"study":
 			add_stress(5)
 			study += 1
@@ -550,12 +608,23 @@ func mom_sms() -> String:
 			return "오늘부터 재활 시작했어. 아파도 참을 만해."
 		9:
 			return "주말에 시간 되면 한번 내려올래? 반찬 좀 해 놨어."
+		11:
+			if flags.get("mom_visit", false):
+				return "반찬 통은 다 먹으면 택배로 보내. 또 채워 줄게."
+			return "택배 보냈어. 김치랑 멸치볶음. 오면 바로 냉장고에 넣어."
+		12:
+			return "요즘 재활 끝나고 동네 한 바퀴씩 걸어. 다리가 많이 좋아졌어."
+		13:
+			return "토요일이 시험이지? 공부하느라 밥 거르지 말고."
+		14:
+			if flags.get("mom_helped", false):
+				return "병원비 영수증 정리하다가 네 이름을 보고 괜히 울컥했어. 고맙다."
+			return "이모가 너 공무원 됐다고 동네방네 자랑하더라. 엄마도 좀 했어."
 	return ""
 
 
 func mom_choice(send: bool) -> String:
-	if send:
-		money -= 500000
+	if send and spend(500000):
 		flags["mom_helped"] = true
 		add_stress(-5)
 		return "엄마: 고마워. 첫 월급도 아직일 텐데... 엄마가 나중에 꼭 갚을게."
@@ -600,6 +669,16 @@ func final_findings() -> Array:
 		out.append("세입자의 전입 날짜를 집주인에게 알려 줌")
 	if flags.get("jaehyuk_filmed", false):
 		out.append("촬영 중인 창구에서 서류를 처리해 다른 민원인 정보가 찍힘")
+	if flags.get("oksun_told", false):
+		out.append("걱정돼 찾아온 이웃에게 주민이 사는지 알려 줌")
+	if flags.get("oksun_exposed", false):
+		out.append("채권추심원에게 주민의 주소를 알려 줌")
+	if flags.get("wanted_done", false):
+		out.append("수배 회람 속 인물에게 인감증명서를 발급함")
+	if flags.get("phishing_done", false):
+		out.append("보이스피싱 피해자에게 서류를 떼 줘 대출 사기에 쓰임")
+	if flags.get("audit_lied", false) and int(flags.get("v_audit_catch", 0)) == 1:
+		out.append("감사 면담에서 사실과 다르게 진술함 (발급 기록과 CCTV로 드러남)")
 	return out
 
 
@@ -619,45 +698,76 @@ func _fatal() -> Dictionary:
 	return {}
 
 
-## 1주차 금요일 저녁. 치명적이지 않으면 "continue"로 2주차에 이어진다.
+## 1주차 금요일(감사)과 2주차 금요일(중간 점검) 저녁. 치명적이지 않으면 "continue"로 다음 주에 이어진다.
 func week_report() -> Dictionary:
 	var fatal := _fatal()
 	if not fatal.is_empty():
 		return fatal
-	var findings := audit_findings()
+	var second := day == Content.WEEK2_END
+	var findings := final_findings() if second else audit_findings()
 	if pen >= 10:
 		fail_reason = "discipline"
 		return _fatal()
-	var title := "1주차 감사 결과: 이상 없음"
+	var head := "2주차 중간 점검" if second else "1주차 감사 결과"
+	var title := head + ": 이상 없음"
 	var body: Array = []
 	if pen >= 8:
-		title = "1주차 감사 결과: 견책"
-		body.append("감사팀은 이번 주 3번 창구에서 나간 서류에 문제가 많았다고 보고했다. 인사 기록에 견책이 남았다. 다음 주에도 이러면 버티기 어렵다.")
+		title = head + ": 견책"
+		body.append("이번 주 3번 창구에서 나간 서류에 문제가 많았다는 보고가 올라갔다. 인사 기록에 견책이 남았다. 다음 주에도 이러면 버티기 어렵다.")
 	elif pen >= 5:
-		title = "1주차 감사 결과: 주의"
-		body.append("감사팀은 몇 가지 실수를 지적했다. 크게 문제 삼지는 않았지만, 팀장이 한숨을 쉬었다.")
+		title = head + ": 주의"
+		body.append("몇 가지 실수가 지적됐다. 크게 문제 삼지는 않았지만, 팀장이 한숨을 쉬었다.")
+	elif second:
+		body.append("최 팀장이 2주 치 기록을 넘겨 보더니 \"다음 주만 이렇게 버티면 수습 평가는 걱정 없겠네요\" 하고 웃었다.")
 	else:
 		body.append("감사팀은 3번 창구에서 큰 문제를 찾지 못했다. 팀장이 어깨를 한 번 두드려 주고 갔다.")
 	if not findings.is_empty():
 		body.append("")
-		body.append("[감사 지적 사항]")
+		body.append("[점검 지적 사항]" if second else "[감사 지적 사항]")
 		for f in findings:
 			body.append("- " + f)
 	body.append("")
 	body.append("[주말]")
-	body.append("토요일에는 늦잠을 잤다. 일요일 저녁, 다음 주 출근 가방을 챙겼다.")
+	if second:
+		body += _weekend_two()
+	else:
+		body.append("토요일에는 늦잠을 잤다. 일요일 저녁, 다음 주 출근 가방을 챙겼다.")
 	return {"title": title, "body": body, "continue": true}
+
+
+## 2주차 주말: 어머니 댁에 다녀오고(기차표), 25일 일요일에 월세가 빠져나간다
+func _weekend_two() -> Array:
+	var out: Array = []
+	if spend(Content.TRIP_COST):
+		flags["mom_visit"] = true
+		add_stress(-10)
+		out.append("토요일에 기차를 탔다. 어머니는 지팡이를 짚고 역까지 마중을 나왔다. 반찬 통을 세 개나 들려 보냈다.")
+	else:
+		out.append("기차표 살 돈이 없어서 전화로 대신했다. 어머니는 \"반찬은 택배로 보낼게\"라고 했다.")
+	if spend(Content.RENT):
+		if money < 0:
+			out.append("25일, 월세 45만 원이 마이너스 통장에서 빠져나갔다. 통장은 %s이다." % money_text())
+		else:
+			out.append("25일, 월세 45만 원이 빠져나갔다. 통장에 %s이 남았다." % won(money))
+	else:
+		flags["rent_late"] = true
+		add_stress(10)
+		out.append("25일, 월세 45만 원이 빠져나가지 못했다. 집주인에게 \"다음 달 월급날 꼭 드릴게요\"라고 문자를 보냈다. 답장은 \"네\" 한 글자였다.")
+	return out
 
 
 func weekend() -> void:
 	add_stress(-20)
-	day = Content.WEEK_END + 1
+	day += 1
 
 
 func ending() -> Dictionary:
 	var fatal := _fatal()
 	if not fatal.is_empty():
 		return fatal
+	if flags.get("audit_lied", false) and int(flags.get("v_audit_catch", 0)) == 1 and not flags.has("lie_counted"):
+		flags["lie_counted"] = true
+		pen += 2
 	var findings := final_findings()
 	var score := rep - pen * 4 - findings.size() * 8
 	var title := ""
@@ -667,9 +777,9 @@ func ending() -> Dictionary:
 		body.append("구청 게시판에 '햇살동 3번 창구 칭찬합니다'라는 글이 여러 번 올라왔다. 이달의 친절 공무원 명단에 이름이 올랐다.")
 	elif score >= 50:
 		title = "인사 평가 A: 믿고 맡기는 3번 창구"
-		body.append("팀장은 평가서에 '처음 2주 치고는 믿고 맡길 만하다'고 적었다.")
+		body.append("팀장은 평가서에 '처음 3주 치고는 믿고 맡길 만하다'고 적었다.")
 	elif score >= 30:
-		title = "인사 평가 B: 무난한 2주"
+		title = "인사 평가 B: 무난한 3주"
 		body.append("큰 사고도, 큰 칭찬도 없었다. 3번 창구는 다음 주에도 열린다.")
 	else:
 		title = "인사 평가 C: 관리 대상"
@@ -681,7 +791,7 @@ func ending() -> Dictionary:
 			body.append("- " + f)
 	body.append("")
 	body.append("[승진 시험]")
-	if study >= 5:
+	if study >= Content.EXAM_STUDY:
 		body.append("토요일 시험장에서 문제를 넘길 때마다 저녁마다 풀던 기출문제가 떠올랐다. 합격이다. 8급 승진 후보에 이름이 올랐다.")
 	else:
 		body.append("토요일 시험장에서 절반쯤은 처음 보는 문제였다. 저녁마다 공부한 날이 %d번뿐이었다. 다음 기회를 노려야 한다." % study)
@@ -728,7 +838,9 @@ func _epilogue() -> Array:
 		out.append("차동훈은 경찰에 넘겨졌고, 윤서영 씨의 전 남편에게는 접근금지 명령이 내려졌다. 윤서영 씨는 요즘 밤에 창문을 열어 둔다.")
 	elif flags.get("envelope_refused", false) or flags.get("envelope_guarded", false):
 		out.append("윤서영 씨는 자기 주소를 캐러 왔던 사람이 있었다는 걸 모른다. 그걸로 됐다.")
-	if flags.get("love_dinner", false):
+	if flags.get("love_couple", false):
+		out.append("서하준은 구청으로 옮겼다. 토요일 시험이 끝나고 둘이서 영화를 봤다. 월요일 아침 책상 위에는 구청에서 온 택배 드링크가 놓여 있었다.")
+	elif flags.get("love_dinner", false):
 		out.append("4번 창구 서하준과는 요즘 퇴근길이 같다. 월요일 아침 책상 위에는 또 드링크가 놓여 있었다.")
 	elif flags.get("love_lunch", false):
 		out.append("서하준과는 점심 친구가 됐다. 김밥은 번갈아 가며 고른다.")
@@ -744,7 +856,9 @@ func _epilogue() -> Array:
 		out.append("오민재 씨는 은행보다 순서가 밀려 보증금의 절반을 잃었다. 집주인 황보창식은 사기 혐의로 조사를 받고 있다.")
 	elif flags.get("minjae_turned", false) or flags.get("minjae_no_date", false):
 		out.append("오민재 씨는 보증금을 돌려받으려고 소송을 시작했다. 확정일자가 없는 계약서는 힘이 약했다.")
-	if flags.get("haneul_ok", false) or flags.get("haneul_rushed", false):
+	if flags.get("haneul_passed", false):
+		out.append("김하늘 학생은 1차에 합격하고 면접을 준비하고 있다. 합격하면 입학 서류도 3번 창구에서 떼겠다고 했다.")
+	elif flags.get("haneul_ok", false) or flags.get("haneul_rushed", false):
 		out.append("김하늘 학생은 원서를 5시 58분에 냈다. 합격 문자를 받으면 3번 창구에 알려 주겠다고 했다.")
 	elif flags.get("haneul_missed", false):
 		out.append("김하늘 학생은 그 대학 원서를 내지 못했다. 재수 학원 상담을 받았다고 한다.")
@@ -758,6 +872,28 @@ func _epilogue() -> Array:
 		out.append("노 주무관은 요즘 3번 창구에 커피를 자주 가져다준다. 처제 인감 건은 평가서에 한 줄로 남았다.")
 	elif flags.get("noh_refused", false):
 		out.append("노 주무관은 한동안 말을 걸지 않았다. 금요일 퇴근길에 \"원칙대로 하는 게 맞긴 하지\" 하고 한마디 하고 갔다.")
+	if flags.get("oksun_found", false):
+		out.append("방옥순 할머니는 기초생활수급이 결정됐다. 반찬가게 사장이 매일 저녁 반찬을 들고 간다.")
+	elif flags.get("oksun_late", false):
+		out.append("방옥순 할머니는 한 달째 병원에 있다. 반찬가게 사장은 그날 주민센터에서 그냥 나온 걸 두고두고 말한다.")
+	elif flags.get("oksun_told", false):
+		out.append("방옥순 할머니는 반찬가게 사장이 부른 119 덕분에 살았다.")
+	elif flags.get("oksun_exposed", false):
+		out.append("방옥순 할머니는 독촉장에 못 이겨 이사를 갔다. 2층 복지팀이 채무 상담을 이어 가고 있다.")
+	if flags.get("wanted_caught", false):
+		out.append("회람 속 수배자는 3번 창구에서 붙잡혔다. 명의를 도용당한 사람들이 주민센터에 감사 인사를 보냈다.")
+	elif flags.get("wanted_done", false):
+		out.append("회람 속 수배자는 3번 창구에서 뗀 인감증명서로 남의 집을 담보로 잡혔다. 경찰이 발급 경위를 조사하고 있다.")
+	if flags.get("phishing_stopped", false):
+		out.append("보이스피싱을 당할 뻔했던 어르신은 요즘 경로당에서 '검찰은 전화로 서류를 떼 오라고 안 한다'고 강의를 한다.")
+	elif flags.get("phishing_done", false):
+		out.append("보이스피싱 피해를 당한 어르신은 대출 3천만 원을 갚느라 가게를 내놓았다.")
+	if flags.get("audit_truth", false):
+		out.append("노 주무관은 감사에서 경고를 받았다. 한동안 말이 없더니, 요즘은 \"3번 덕분에 정신 차렸다\"고 한다.")
+	elif flags.get("audit_lied", false) and int(flags.get("v_audit_catch", 0)) == 1:
+		out.append("감사팀은 발급 기록과 CCTV로 그날 일을 다 알고 있었다. 노 주무관과 함께 경위서를 썼다.")
+	elif flags.get("audit_lied", false):
+		out.append("감사는 조용히 끝났다. 노 주무관은 3번 창구에 커피를 자주 사다 준다. 그 커피는 이상하게 쓰다.")
 	if flags.get("councilor_favor", false):
 		out.append("김태식 구의원은 동네 모임에서 3번 창구를 칭찬했다. 인사 평가에는 다르게 적혔다.")
 	elif flags.get("councilor_refused", false):
@@ -767,16 +903,16 @@ func _epilogue() -> Array:
 
 func _home() -> Array:
 	var out: Array = []
-	if money >= Content.TRIP_COST:
-		money -= Content.TRIP_COST
-		out.append("토요일 시험이 끝나고 기차를 탔다. 어머니는 지팡이를 짚고 역까지 마중을 나왔다.")
-	else:
-		out.append("기차표 살 돈이 없어서 전화로 대신했다. 어머니는 \"반찬은 택배로 보낼게\"라고 했다.")
-	money -= Content.RENT
 	if money < 0:
-		out.append("25일, 월세 45만 원이 빠져나가지 못했다. 집주인에게 사정하는 문자를 보냈다.")
+		var interest := int(round(-money * OVERDRAFT_RATE / 12.0 / 10.0)) * 10
+		money -= interest
+		out.append("10월 말, 마이너스 통장 이자 %s원이 빠져나갔다. 11월 20일 월급날까지 %s으로 버텨야 한다." % [comma(interest), money_text()])
+	elif overdraft > 0:
+		out.append("마이너스 통장은 열어만 두고 끌어다 쓰지 않았다. 통장에 %s이 있다." % won(money))
 	else:
-		out.append("25일, 월세 45만 원을 내고 통장에 %s이 남았다." % won(money))
+		out.append("통장에 %s이 남았다. 11월 20일이 두 번째 월급날이다." % won(money))
+	if flags.get("rent_late", false):
+		out.append("밀린 10월 월세는 11월 월급날 한꺼번에 내기로 했다. 집주인에게 음료수 한 상자를 들고 갔다.")
 	var held := 0
 	for code in stocks:
 		held += int(stocks[code]["price"]) * int(stocks[code]["hold"])

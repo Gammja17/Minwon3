@@ -1,16 +1,19 @@
 extends Control
-## 1주차 금요일에는 감사 결과(이어서 2주차로), 마지막 금요일에는 인사 평가와 최종 엔딩.
+## 1주차 금요일에는 감사 결과, 2주차 금요일에는 중간 점검(다음 주로 이어진다). 마지막 금요일에는 수습 평가와 최종 엔딩.
 
 
 func _ready() -> void:
 	Sfx.enter(false)
-	var e := Game.week_report() if Game.day == Content.WEEK_END and Game.fail_reason == "" else Game.ending()
+	var weekly: bool = Game.day in [Content.WEEK_END, Content.WEEK2_END] and Game.fail_reason == ""
+	var e := Game.week_report() if weekly else Game.ending()
 	%Title.text = e["title"]
 	var title: String = e["title"]
 	if title == "파면":
 		Skeam.unlock("fired")
-	elif title.begins_with("인사 평가"):
+	elif title.begins_with("2주차 중간 점검"):
 		Skeam.unlock("two_weeks")
+	elif title.begins_with("인사 평가"):
+		Skeam.unlock("three_weeks")
 		if title.begins_with("인사 평가 S"):
 			Skeam.unlock("grade_s")
 	var t := ""
@@ -19,7 +22,7 @@ func _ready() -> void:
 			t += "[color=#ffd479]%s[/color]\n" % String(line).trim_prefix("[").trim_suffix("]")
 		else:
 			t += "%s\n" % line
-	t += "\n[color=#8a8f98]평판 %d   /   벌점 %d   /   스트레스 %d   /   공부 %d   /   잔고 %s[/color]" % [Game.rep, Game.pen, Game.stress, Game.study, Game.won(Game.money)]
+	t += "\n[color=#8a8f98]평판 %d   /   벌점 %d   /   스트레스 %d   /   공부 %d   /   잔고 %s[/color]" % [Game.rep, Game.pen, Game.stress, Game.study, Game.money_text()]
 	%Body.text = DocView.keep_words(t)
 	if e.get("continue", false):
 		%RestartBtn.text = "주말을 보내고 월요일 출근"
@@ -27,7 +30,7 @@ func _ready() -> void:
 			Game.weekend()
 			get_tree().change_scene_to_file("res://scenes/briefing.tscn"))
 	elif title.begins_with("인사 평가"):
-		Game.clear_save()   # 2주를 끝낸 게임은 이어 할 수 없다
+		Game.clear_save()   # 3주를 끝낸 게임은 이어 할 수 없다
 		%RestartBtn.pressed.connect(func(): get_tree().change_scene_to_file("res://scenes/title.tscn"))
 	else:
 		# 병가, 징계 같은 중간 엔딩: 그날 아침 저장으로 돌아갈 수 있다

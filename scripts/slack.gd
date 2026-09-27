@@ -144,6 +144,10 @@ func _chat(body: VBoxContainer) -> void:
 		b.pressed.connect(func():
 			Game.flags[key] = i
 			Game.apply(pick[2])
+			if pick[2].has("desk"):
+				# 수다방에서 말한 간식을 잠시 뒤 누가 책상에 두고 간다
+				get_tree().create_timer(2.5).timeout.connect(o.add_desk_item.bind(String(pick[2]["desk"]),
+					"(%s이 책상 귀퉁이에 %s를 두고 간다)" % [ch["who"], Content.DESK_ITEMS[pick[2]["desk"]][0]]))
 			Game.pass_time(3)
 			Sfx.play("chat", -6.0)
 			o._refresh_top()
@@ -307,7 +311,8 @@ func trade(code: String, qty: int) -> void:
 	var s: Dictionary = Game.stocks[code]
 	var price := int(s["price"])
 	if qty > 0:
-		if Game.money < price * qty:
+		if not Game.can_spend(price * qty):
+			o._sys("(잔고가 모자라다)")
 			return
 		s["cost"] = (int(s["cost"]) * int(s["hold"]) + price * qty) / (int(s["hold"]) + qty)
 		s["hold"] = int(s["hold"]) + qty

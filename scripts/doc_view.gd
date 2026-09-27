@@ -39,6 +39,20 @@ static func make(doc: Dictionary, pick := Callable()) -> Control:
 		"death_cert":
 			return _paper("사망진단서", _rows(k, doc, [["deceased", "사망자"], ["deceased_birth", "생년월일"],
 				["date", "사망 일자"], ["place", "발행 기관"]], pick))
+		"judgment":
+			return _paper("%s (%s)" % [doc["title"], doc["court"]], _rows(k, doc, [["no", "사건 번호"], ["creditor", "채권자"],
+				["debtor", "채무자"], ["debtor_birth", "채무자 생년월일"], ["amount", "갚을 돈"]], pick), _note("법원 직인"), Color("eef0f4"))
+		"iou":
+			return _paper("차용증", _rows(k, doc, [["lender", "빌려준 사람"], ["borrower", "빌린 사람"], ["amount", "금액"], ["date", "쓴 날"]], pick),
+				_note("두 사람 도장 날인 (법원 서류 아님)"), Color("fbf6e6"))
+		"birth_form":
+			return _paper("출생신고서", _rows(k, doc, [["child", "아이 이름"], ["child_birth", "태어난 날"], ["father", "부"],
+				["mother", "모"], ["reporter", "신고인"]], pick), _corrected(doc))
+		"birth_cert":
+			return _paper("출생증명서", _rows(k, doc, [["child_birth", "태어난 날"], ["time", "시각"], ["sex", "성별"],
+				["mother", "산모"], ["place", "발행 기관"]], pick))
+		"wanted":
+			return _wanted(doc, pick)
 	var rows: Array = []
 	var i := 0
 	for r in doc.get("rows", []):
@@ -188,6 +202,30 @@ static func _id_card(doc: Dictionary, pick: Callable) -> Control:
 	rows.add_child(_wrap(_row("생년월일", doc["birth"], 64), "id.birth", pick))
 	rows.add_child(_wrap(_row("주소", doc["addr"], 64), "id.addr", pick))
 	rows.add_child(_wrap(_row("유효기간" if license else "발급일", doc["date"], 64), "id.date", pick))
+	return p
+
+
+## 경찰서 회람: 사진과 수법. 책상 위에 두고 창구 앞 얼굴과 짚어 볼 수 있다.
+static func _wanted(doc: Dictionary, pick: Callable) -> Control:
+	var p := _panel(Color("fbfaf6"), Color("8a2c24"))
+	var v := VBoxContainer.new()
+	v.add_theme_constant_override("separation", 5)
+	p.add_child(v)
+	var head := _label("경찰 회람: 명의 도용 사기 피의자", 17, RED)
+	head.add_theme_font_override("font", BOLD)
+	v.add_child(head)
+	var hb := HBoxContainer.new()
+	hb.add_theme_constant_override("separation", 10)
+	v.add_child(hb)
+	hb.add_child(_wrap(photo(doc["look"], Vector2(76, 94)), "wanted.look", pick))
+	var rows := VBoxContainer.new()
+	rows.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+	hb.add_child(rows)
+	rows.add_child(_wrap(_row("이름", doc["name"], 44), "wanted.name", pick))
+	rows.add_child(_wrap(_row("나이", doc["age"], 44), "wanted.age", pick))
+	rows.add_child(_wrap(_row("수법", doc["how"], 44), "wanted.how", pick))
+	v.add_child(_note("보면 신고: " + String(doc["call"])))
+	p.custom_minimum_size.x = 300
 	return p
 
 

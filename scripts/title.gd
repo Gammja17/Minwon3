@@ -141,7 +141,8 @@ func _slot_card(s: int) -> Control:
 		v.add_child(_label("%s 아침" % Content.DATES[d - 1].substr(6), 20, INK, BOLD))
 		v.add_child(_label("%d일째 근무" % d, 17, Color("5a4f40"), BOLD))
 		v.add_child(_label("평판 %d   벌점 %d" % [int(info.get("rep", 0)), int(info.get("pen", 0))], 17, Color("5a4f40"), BOLD))
-		v.add_child(_label("잔고 %s" % Game.won(int(info.get("money", 0))), 17, Color("5a4f40"), BOLD))
+		var m := int(info.get("money", 0))
+		v.add_child(_label("잔고 %s" % (Game.won(m) if m >= 0 else "마이너스 " + Game.won(-m)), 17, Color("5a4f40"), BOLD))
 		v.add_child(_label("공부 %d/%d" % [int(info.get("study", 0)), Content.EXAM_STUDY], 17, Color("5a4f40"), BOLD))
 		var gap := Control.new()
 		gap.size_flags_vertical = Control.SIZE_EXPAND_FILL

@@ -15,7 +15,7 @@ const PAINT := {
 	"select": [Color(1, 0.8, 0.1, 0.45), Color("d9a400")],
 	"flaw": [Color(0.9, 0.2, 0.15, 0.22), Color("c0392b")],
 }
-const MAIN_KINDS := ["form", "move", "death_form", "reissue", "lease", "seal_reg"]
+const MAIN_KINDS := ["form", "move", "death_form", "reissue", "lease", "seal_reg", "birth_form"]
 ## 다음 단계로 넘어갈 때 앞 단계에서 지우는 것
 const STAGE_DROP := ["flaw", "_valid", "_found", "_asked", "needs_call", "_called", "guard_warn", "reason", "custom", "outcomes",
 	"reject_say", "thanks", "again", "asks", "win_flag", "fail_flag", "win_event", "fail_event", "verified_by"]
@@ -89,6 +89,8 @@ var drag_from := Vector2.ZERO  # 서류를 집은 곳
 var empty_since := -1.0        # 누가 기다리는데 창구가 빈 채로 있던 시각 (분)
 var last_waiting := 0          # 대기 인원이 늘면 번호표 소리
 const LATE_MIN := 15.0         # 이만큼 비워 두고 부르면 손님이 짜증 낸다 (게임 분)
+var next_drop := 0.0           # 누가 책상에 뭘 올려놓고 갈 시각 (분)
+var mess_acc := 0.0            # 책상이 어지러우면 쌓이는 짜증
 
 
 func _ready() -> void:
@@ -134,6 +136,7 @@ func _ready() -> void:
 	slack.setup(self)
 	_build_vignette()
 	_build_exam_label()
+	_build_clutter()
 	_build_drink()
 	%TabSlack.visible = not Game.tutorial
 	notes_layer = Control.new()
@@ -208,6 +211,7 @@ func _process(delta: float) -> void:
 		_refresh_all()
 	_check_patience()
 	_check_counter()
+	_check_drops(delta)
 	_check_events()
 	if holding != "":
 		stamp_cursor.global_position = get_global_mouse_position() - Vector2(70, 30)
@@ -290,7 +294,7 @@ func _refresh_top() -> void:
 	var t := int(Game.clock)
 	clock_label.text = "%02d:%02d" % [t / 60, t % 60]
 	queue_label.text = "대기 %d명" % Game.waiting
-	money_label.text = "잔고 %s" % Game.won(Game.money)
+	money_label.text = "잔고 %s" % Game.money_text()
 	money_label.add_theme_color_override("font_color", Color("ff8a7a") if Game.money < 0 else Color.WHITE)
 	rep_label.text = "평판 %d" % Game.rep
 	pen_label.text = "벌점 %d" % Game.pen
@@ -416,7 +420,8 @@ func _new_paper(d: Dictionary, card: Control, can_stamp: bool) -> Paper:
 
 func _clear_papers() -> void:
 	for p in papers_layer.get_children():
-		p.queue_free()
+		if not p.has_meta("item"):
+			p.queue_free()
 	papers.clear()
 	reason_paper = null
 	slip_paper = null
@@ -516,7 +521,9 @@ func print_slip(key: String) -> void:
 	if not serving or leaving:
 		return
 	if slip_paper:
-		slip_paper.queue_free()
+		# 잘못 뽑은 안내문은 사라지지 않고 책상에 쌓인다
+		_to_clutter(slip_paper, {"kind": "slip_old", "text": Content.dept_name(slip_dept)})
+		slip_paper = null
 	var d: Dictionary = Content.DEPTS[key]
 	var rows := [DocView._row("담당", d["name"]), DocView._row("위치", d["where"]), DocView._row("업무", d["jobs"])]
 	var card := DocView._paper("민원 안내문", rows, null, Color("fffbe6"))
@@ -562,14 +569,20 @@ func _on_paper_released(p: Paper) -> void:
 	var at := get_global_mouse_position()
 	if %Trash.get_global_rect().grow(8).has_point(at):
 		_throw_away(p)
+	elif p.has_meta("item"):
+		var it: Dictionary = p.get_meta("item")
+		it["x"] = p.position.x
+		it["y"] = p.position.y
 	elif _in_return_zone() and at.distance_to(drag_from) > 20.0:
 		return_papers()
 
 
-## 휴지통: 내가 만든 종이(안내문·반려 사유서)만 버린다. 민원인이 낸 서류는 버릴 수 없다.
+## 휴지통: 내가 만든 종이(안내문, 반려 사유서)와 책상 위 물건만 버린다. 민원인이 낸 서류는 버릴 수 없다.
 func _throw_away(p: Paper) -> void:
 	var k: String = p.doc.get("kind", "")
-	if not k in ["slip", "reason", "love_note"]:
+	if p.has_meta("item"):
+		_drop_item(p)
+	elif not k in ["slip", "reason", "love_note"]:
 		_sys("(민원인이 낸 서류는 버릴 수 없다)")
 		create_tween().tween_property(p, "position:y", p.position.y - 70, 0.2).set_ease(Tween.EASE_OUT)
 		return
@@ -977,6 +990,9 @@ func _leave() -> void:
 	leaving = true
 	if c.has("note_id"):
 		_peel_note(int(c["note_id"]))
+	if not Game.tutorial and randf() < 0.1:
+		var left: String = ["ticket", "ticket", "flyer"].pick_random()
+		add_desk_item(left, "(민원인이 번호표를 창구에 두고 갔다)" if left == "ticket" else "(민원인이 들고 있던 전단지를 창구에 두고 갔다)")
 	_refresh_all()
 	_hand_back()
 	await get_tree().create_timer(1.6).timeout
@@ -999,7 +1015,7 @@ func _leave() -> void:
 
 ## 책상 위 서류를 한데 모아 민원인 쪽으로 돌려서, 창구 밑 서류 넣는 곳으로 밀어 넣는다
 func _hand_back() -> void:
-	var kids := papers_layer.get_children()
+	var kids := papers_layer.get_children().filter(func(k): return not k.has_meta("item"))
 	if kids.is_empty():
 		return
 	var to := slot.global_position + slot.size * 0.5 - papers_layer.global_position
@@ -1068,7 +1084,7 @@ func _fix_on_spot() -> void:
 	var v: Dictionary = c["_valid"]
 	c["docs"] = v["docs"].duplicate(true)
 	for d in c["docs"]:
-		if d["kind"] in ["form", "move"]:
+		if d["kind"] in ["form", "move", "birth_form"]:
 			d["corrected"] = true
 	c["records"] = v["records"].duplicate(true)
 	for k in ["flaw", "_valid", "reason"]:
@@ -1289,13 +1305,33 @@ func _build_drink() -> void:
 	drink.texture_normal = preload("res://assets/ui/drink.png")
 	drink.ignore_texture_size = true
 	drink.stretch_mode = TextureButton.STRETCH_KEEP_ASPECT_CENTERED
-	drink.position = Vector2(226, 268)
-	drink.size = Vector2(56, 72)
-	drink.tooltip_text = "누가 놓고 간 드링크"
+	drink.position = Vector2(560, 200)
+	drink.size = Vector2(92, 118)
+	drink.pivot_offset = drink.size * 0.5
+	drink.tooltip_text = "누가 놓고 간 드링크 (눌러서 마시기)"
 	drink.mouse_default_cursor_shape = Control.CURSOR_POINTING_HAND
-	desk.add_child(drink)
-	desk.move_child(drink, papers_layer.get_index())
+	desk.add_child(drink)   # 서류보다 위에 둬서 가려지지 않게
+	var tag := Label.new()
+	tag.text = "쪽지"
+	tag.add_theme_font_override("font", BOLD)
+	tag.add_theme_font_size_override("font_size", 15)
+	tag.add_theme_color_override("font_color", Color("3a2a12"))
+	var tsb := StyleBoxFlat.new()
+	tsb.bg_color = Color("fff3a8")
+	tsb.set_content_margin_all(4)
+	tag.add_theme_stylebox_override("normal", tsb)
+	tag.position = Vector2(54, 6)
+	tag.rotation_degrees = 8.0
+	tag.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	drink.add_child(tag)
+	var tw := drink.create_tween().set_loops()
+	tw.tween_property(drink, "modulate", Color(1.35, 1.3, 1.05), 0.7).set_trans(Tween.TRANS_SINE)
+	tw.parallel().tween_property(drink, "rotation_degrees", 4.0, 0.7).set_trans(Tween.TRANS_SINE)
+	tw.tween_property(drink, "modulate", Color.WHITE, 0.7).set_trans(Tween.TRANS_SINE)
+	tw.parallel().tween_property(drink, "rotation_degrees", -4.0, 0.7).set_trans(Tween.TRANS_SINE)
 	drink.pressed.connect(_open_drink.bind(note))
+	_log("[color=%s][i](책상 위에 노란 쪽지가 붙은 드링크가 놓여 있다)[/i][/color]\n" % C_ACT)
+	Sfx.play("pop", -6.0)
 
 
 func _open_drink(note: String) -> void:
@@ -1312,6 +1348,203 @@ func _open_drink(note: String) -> void:
 	p.position = Vector2(300, 150)
 	_sys("(드링크를 마셨다. 조금 힘이 난다)")
 	_refresh_top()
+
+
+# ─────────────────────────── 책상 위 물건 ───────────────────────────
+## 간식, 빈 캔, 회람, 잘못 뽑은 안내문... 치우지 않으면 날이 바뀌어도 남는다. 너무 쌓이면 스트레스가 오른다.
+
+func _build_clutter() -> void:
+	if Game.tutorial:
+		return
+	# 3주차 월요일 아침: 경찰서 회람
+	if Game.day == 11 and not Game.flags.has("circular_given"):
+		Game.flags["circular_given"] = true
+		Game.desk_items.append({"kind": "wanted", "x": 640.0, "y": 176.0})
+		_sys("(책상 위에 최 팀장이 두고 간 경찰 회람이 있다. 사진 속 얼굴을 기억해 두자)")
+	for it in Game.desk_items:
+		_item_paper(it)
+	next_drop = Game.clock + randf_range(50.0, 110.0)
+
+
+## 새 물건을 책상에 올린다 (간식, 회람, 두고 간 번호표 등)
+func add_desk_item(kind: String, say := "", extra := {}) -> void:
+	if not is_inside_tree() or Game.tutorial:
+		return
+	if Game.desk_items.size() >= Content.DESK_CAP:
+		return
+	var it := {"kind": kind, "x": randf_range(24.0, 860.0), "y": randf_range(186.0, 276.0)}
+	it.merge(extra)
+	Game.desk_items.append(it)
+	var p := _item_paper(it)
+	p.modulate.a = 0.0
+	p.scale = Vector2(1.3, 1.3)
+	var tw := create_tween().set_parallel()
+	tw.tween_property(p, "modulate:a", 1.0, 0.18)
+	tw.tween_property(p, "scale", Vector2.ONE, 0.18).set_ease(Tween.EASE_OUT)
+	Sfx.play("paper", -8.0)
+	if say != "":
+		_log("[color=%s][i]%s[/i][/color]\n" % [C_ACT, say])
+
+
+func _item_paper(it: Dictionary) -> Paper:
+	var p := _new_paper({"kind": "item"}, _item_card(it), false)
+	p.set_meta("item", it)
+	p.position = Vector2(float(it.get("x", 40.0)), float(it.get("y", 220.0)))
+	papers_layer.move_child(p, 0)   # 민원인 서류보다 아래에 깔린다
+	return p
+
+
+func _item_card(it: Dictionary) -> Control:
+	var k: String = it["kind"]
+	if k == "wanted":
+		var w := DocView.make(Content.wanted_doc(Game.flags), _on_pick)
+		w.rotation_degrees = -2.0
+		return w
+	if k == "slip_old":
+		var card := DocView._paper("민원 안내문 (잘못 뽑음)", [DocView._row("담당", String(it.get("text", "")), 44)], null, Color("f2ecd6"))
+		card.custom_minimum_size.x = 200
+		card.modulate = Color(0.9, 0.88, 0.84)
+		return card
+	if k == "circular":
+		var l := DocView._label(String(it.get("text", "")), 15, DocView.INK)
+		l.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
+		l.custom_minimum_size.x = 210
+		return DocView._paper("구청 회람", [l], null, Color("e9eff5"))
+	var info: Array = Content.DESK_ITEMS.get(k, [k])
+	var box := VBoxContainer.new()
+	box.add_theme_constant_override("separation", 2)
+	box.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	var path := "res://assets/ui/desk_%s.png" % k
+	if ResourceLoader.exists(path):
+		var tex := TextureRect.new()
+		tex.texture = load(path)
+		tex.expand_mode = TextureRect.EXPAND_IGNORE_SIZE
+		tex.stretch_mode = TextureRect.STRETCH_KEEP_ASPECT_CENTERED
+		tex.custom_minimum_size = Vector2(84, 84)
+		tex.mouse_filter = Control.MOUSE_FILTER_IGNORE
+		box.add_child(tex)
+	var lbl := DocView._label(String(info[0]), 14, Color("fff3dc"))
+	lbl.add_theme_color_override("font_outline_color", Color(0.16, 0.09, 0.04))
+	lbl.add_theme_constant_override("outline_size", 4)
+	lbl.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
+	box.add_child(lbl)
+	if info.size() > 1:
+		box.add_child(_item_button(String(info[1]), _use_item.bind(it)))
+	elif k == "pile":
+		box.add_child(_item_button("철하기", _file_pile.bind(it)))
+	var holder := PanelContainer.new()
+	holder.add_theme_stylebox_override("panel", StyleBoxEmpty.new())
+	holder.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	holder.custom_minimum_size.x = 92
+	holder.add_child(box)
+	return holder
+
+
+func _item_button(text: String, cb: Callable) -> Button:
+	var b := Button.new()
+	b.text = text
+	b.add_theme_font_size_override("font_size", 14)
+	b.custom_minimum_size = Vector2(0, 30)
+	b.pressed.connect(cb)
+	return b
+
+
+func _paper_of(it: Dictionary) -> Paper:
+	for p in papers_layer.get_children():
+		if p.has_meta("item") and p.get_meta("item") == it:
+			return p
+	return null
+
+
+## 간식을 먹는다. 껍데기는 책상에 남는다. 민원인 앞에서 먹으면 한소리 듣는다.
+func _use_item(it: Dictionary) -> void:
+	var info: Array = Content.DESK_ITEMS[it["kind"]]
+	Game.add_stress(int(info[2]))
+	Game.pass_time(2)
+	Sfx.play("bottle" if it["kind"] != "choco" else "paper")
+	_sys(String(info[4]))
+	if serving and not leaving and not c.get("_saw_snack", false) and c.get("phase") != "gift":
+		c["_saw_snack"] = true
+		_say_them("(창구 너머로 빤히 본다) ......일하다 말고 드시는 거예요?")
+		Game.apply({"rep": -1})
+	it["kind"] = info[3]
+	var p := _paper_of(it)
+	if p:
+		p.get_child(0).queue_free()
+		p.add_child(_item_card(it))
+		p.move_child(p.get_child(-1), 0)
+	_refresh_top()
+
+
+## 노 주무관이 떠넘긴 서류를 철해서 돌려준다
+func _file_pile(it: Dictionary) -> void:
+	Game.pass_time(6)
+	Game.noh = clampi(Game.noh + 4, 0, 100)
+	_sys("(노 주무관 서류를 날짜순으로 철해서 2번 창구에 돌려놓았다)")
+	var p := _paper_of(it)
+	if p:
+		_drop_item(p, false)
+	_refresh_top()
+
+
+## 책상에서 치운다 (휴지통으로)
+func _drop_item(p: Paper, trash := true) -> void:
+	var it: Dictionary = p.get_meta("item")
+	Game.desk_items.erase(it)
+	p.remove_meta("item")
+	if trash and it["kind"] == "pile":
+		Game.noh = clampi(Game.noh - 6, 0, 100)
+		_sys("(노 주무관 서류를 휴지통에 넣었다. 들키면 한소리 듣겠다)")
+	var center: Vector2 = %Trash.global_position + %Trash.size * Vector2(0.5, 0.3) - papers_layer.global_position
+	p.pivot_offset = p.size * 0.5
+	p.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	var tw := create_tween().set_parallel()
+	tw.tween_property(p, "position", (center - p.size * 0.5) if trash else p.position + Vector2(0, -60), 0.2)
+	tw.tween_property(p, "scale", Vector2(0.12, 0.12), 0.2)
+	tw.tween_property(p, "rotation_degrees", 220.0 if trash else 0.0, 0.2)
+	tw.tween_property(p, "modulate:a", 0.0, 0.2)
+	tw.chain().tween_callback(p.queue_free)
+	Sfx.play("paper")
+
+
+## 이미 책상에 있는 종이(잘못 뽑은 안내문 등)를 책상 물건으로 바꾼다
+func _to_clutter(p: Paper, it: Dictionary) -> void:
+	it["x"] = clampf(p.position.x + randf_range(-30.0, 30.0), 10.0, 860.0)
+	it["y"] = clampf(p.position.y + 60.0, 150.0, 280.0)
+	p.queue_free()
+	if Game.desk_items.size() < Content.DESK_CAP:
+		Game.desk_items.append(it)
+		_item_paper(it)
+
+
+## 하루 중에 누가 책상에 뭘 올려놓고 간다. 물건이 너무 쌓이면 스트레스가 오르고 팀장이 한마디 한다.
+func _check_drops(delta: float) -> void:
+	if Game.tutorial or ending_started or Game.is_closed():
+		return
+	var n := Game.desk_items.size()
+	if n >= Content.DESK_MESSY:
+		mess_acc += delta * Game.MIN_PER_SEC * Game.speed
+		if mess_acc >= 30.0:
+			mess_acc = 0.0
+			Game.add_stress(1)
+		var key := "messy_%d" % Game.day
+		if n >= Content.DESK_MESSY + 2 and not Game.flags.has(key):
+			Game.flags[key] = true
+			Game.apply({"rep": -1})
+			_slip("최 팀장 메모: 책상 좀 치워요. 창구 너머로 민원인들이 다 봐요. 쓰레기는 휴지통에요.", SLIP_BAD)
+	if Game.clock < next_drop:
+		return
+	next_drop = Game.clock + randf_range(90.0, 170.0)
+	var roll := randf()
+	var pile_key := "pile_%d" % Game.day
+	if roll < 0.35 and Game.noh >= 35 and not Game.flags.has(pile_key):
+		Game.flags[pile_key] = true
+		add_desk_item("pile", "(노 주무관이 서류 뭉치를 3번 책상 귀퉁이에 슬쩍 올려놓는다) \"3번, 이거 시간 날 때 좀 철해 줘~\"")
+	elif roll < 0.85:
+		var who: String = ["(정다운이 지나가며 회람을 책상에 올려놓는다)", "(최 팀장이 회람을 한 장씩 돌린다)"].pick_random()
+		add_desk_item("circular", who, {"text": Content.CIRCULARS.pick_random()})
+	else:
+		add_desk_item("flyer", "(누가 우편함에 끼어 있던 전단지를 책상에 올려놓고 갔다)")
 
 
 func _end_day() -> void:

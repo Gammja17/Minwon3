@@ -1,13 +1,17 @@
 extends Node
-## 실제 창구 화면으로 2주(10일)를 자동 진행하며 런타임 오류와 이야기 흐름을 확인한다.
-## 1회차는 규정대로, 2회차는 1주차를 나쁘게 보낸 뒤 2주차 만회 이야기를 확인한다.
+## 실제 창구 화면으로 3주(15일)를 자동 진행하며 런타임 오류와 이야기 흐름을 확인한다.
+## 1회차는 규정대로, 2회차는 1주차를 나쁘게 보낸 뒤 2, 3주차 만회 이야기를 확인한다.
 ## 실행: godot --headless --path . res://tools/playtest.tscn
 
 const OFFICE := preload("res://scenes/office.tscn")
 const EXPECT_GOOD := ["dalsu_served", "grandma_helped", "mee_helped", "declined_gift", "scam_caught", "audit_pass",
 	"dalsu_done", "envelope_refused", "noh_asked", "mom_helped",
 	"jiwoo_moved", "okja_done", "mansu_thanked", "mee_extended", "noh_refused", "seoyoung_served", "donghun_left", "councilor_refused",
-	"minjae_fixed", "changsik_refused", "haneul_ok", "jaehyuk_ok", "minjae_saved", "doyun_done", "love_lunch"]
+	"minjae_fixed", "changsik_refused", "haneul_ok", "jaehyuk_ok", "minjae_saved", "doyun_done", "love_lunch",
+	"oksun_found", "oksun_thanked", "haneul_passed", "wanted_caught", "audit_truth", "phishing_stopped", "dalsu_coffee_no", "love_cheer",
+	"overdraft", "mom_visit"]
+## 1회차에서 고정하는 판의 속사정 (정답만 고르는 봇이 위 플래그를 모두 얻도록)
+const CAST_GOOD := {"v_scam": 0, "v_neighbor": 0, "v_phishing": 0, "v_auditor": 0}
 const EXPECT_BAD := ["taemin_caught", "mee_second", "dalsu_done", "donghun_left", "seoyoung_served"]
 
 var seen := {}
@@ -31,6 +35,7 @@ func _ready() -> void:
 	# ── 1회차: 규정대로 ──
 	Game.new_game()
 	Game.rng.seed = 7
+	Game.flags.merge(CAST_GOOD, true)
 	Game.revisit_chance = 1.0
 	await _run_days(1, Content.LAST_DAY)
 	var e := Game.ending()
@@ -46,7 +51,7 @@ func _ready() -> void:
 	print("seen=%s ui_decisions=%d" % [seen, ui_decisions])
 	var got: Array = Engine.get_meta("skeam_log")
 	for id in ["first_process", "sharp_eye", "right_dept", "calm_down", "dalsu_served", "scam_caught", "envelope_refused", "councilor_refused", "audit_pass",
-			"minjae_saved", "haneul_ok", "jaehyuk_ok", "fix_on_spot", "note_back", "doyun_done"]:
+			"minjae_saved", "haneul_ok", "jaehyuk_ok", "fix_on_spot", "note_back", "doyun_done", "crisis_found", "wanted_caught", "phishing_stopped"]:
 		if not got.has(id):
 			print("  [MISSING] 도전 과제 %s" % id)
 			ok = false
@@ -57,7 +62,7 @@ func _ready() -> void:
 	# ── 2회차: 1주차를 나쁘게 보냈다면 ──
 	Game.new_game()
 	Game.rng.seed = 11
-	Game.flags = {"scam_escaped": true, "mee_hurt": true, "envelope_refused": true, "dalsu_ejected": true}
+	Game.flags.merge({"scam_escaped": true, "mee_hurt": true, "envelope_refused": true, "dalsu_ejected": true}, true)
 	Game.day = Content.WEEK_END + 1
 	await _run_days(Content.WEEK_END + 1, Content.LAST_DAY)
 	print("ENDING 2: %s" % Game.ending()["title"])
@@ -94,9 +99,10 @@ func _ready() -> void:
 
 	# ── 엔딩 도전 과제: 완주 · S 평가 · 파면 ──
 	Engine.set_meta("skeam_log", [])
-	for case in [[{}, ["two_weeks", "grade_s"]], [{"bribe_taken": true}, ["fired"]]]:
+	for case in [[{}, ["three_weeks", "grade_s"], Content.LAST_DAY], [{"bribe_taken": true}, ["fired"], Content.LAST_DAY],
+			[{}, ["two_weeks"], Content.WEEK2_END]]:
 		Game.new_game()
-		Game.day = Content.LAST_DAY
+		Game.day = case[2]
 		Game.rep = 100
 		Game.flags = case[0]
 		var en: Control = load("res://scenes/ending.tscn").instantiate()
@@ -142,7 +148,8 @@ func _ready() -> void:
 	ok = ok and need <= panel.size.y + 1
 	ev.queue_free()
 	# 소문이 긴 날: 사건 두 줄에 친구와 저녁
-	for pair in [[4, {"haneul_missed": true}], [6, {}], [7, {"minjae_erased": true}], [8, {"jaehyuk_filmed": true, "envelope_refused": true}]]:
+	for pair in [[4, {"haneul_missed": true}], [6, {}], [7, {"minjae_erased": true}], [8, {"jaehyuk_filmed": true, "envelope_refused": true}],
+			[11, {"oksun_exposed": true}], [14, {"phishing_done": true}]]:
 		Game.new_game()
 		Game.day = pair[0]
 		Game.flags = pair[1]
@@ -159,8 +166,79 @@ func _ready() -> void:
 			print("  [FAIL] %d일 저녁 화면이 넘침 %.0f / %.0f" % [pair[0], n2, p2.size.y])
 			ok = false
 		e2.queue_free()
+	await _run_desk()
 	print("PLAYTEST " + ("OK" if ok else "FAIL"))
 	get_tree().quit()
+
+
+## 책상 관리, 편의점, 마이너스 통장, 판마다 달라지는 순서
+func _run_desk() -> void:
+	# 판마다 속사정과 순서가 다르다
+	var orders := {}
+	var variants := {}
+	for sd in [1, 2, 3, 4, 5, 6]:
+		Game.new_game()
+		Game.rng.seed = sd
+		orders[str(Content.day_queue(4, Game.flags, Game.rng))] = true
+		variants[str([Game.flags["v_scam"], Game.flags["v_neighbor"], Game.flags["v_phishing"], Game.flags["day_d4_death"]])] = true
+	var varied := orders.size() >= 3 and variants.size() >= 3
+	# 돈: 잔고가 모자라면 못 산다, 마이너스 통장을 열면 한도까지
+	Game.new_game()
+	Game.money = 1000
+	var blocked := not Game.spend(1500) and Game.money == 1000
+	Game.open_overdraft()
+	var loaned: bool = Game.spend(1500) and Game.money == -500 and Game.money_text().begins_with("마이너스")
+	# 3주차 월요일 아침: 책상 위 경찰 회람, 안내문을 두 번 뽑으면 먼저 것이 책상에 남는다, 간식은 껍데기를 남긴다
+	Game.new_game()
+	Game.day = 11
+	Game.start_day()
+	Game.desk_items = [{"kind": "choco", "x": 100.0, "y": 220.0}]
+	var o: Node = OFFICE.instantiate()
+	add_child(o)
+	o.set_process(false)
+	await _frames(2)
+	var circular := Game.desk_items.any(func(it): return it["kind"] == "wanted")
+	var s0 := Game.stress
+	o._use_item(Game.desk_items[0])
+	var ate: bool = Game.desk_items[0]["kind"] == "wrapper" and Game.stress < s0
+	Game.queue = [Content._make_transfer(Game.rng)]
+	o._on_next()
+	await _frames(2)
+	o.print_slip("tax")
+	o.print_slip(String(o.c["correct"]).substr(9))
+	var slip_left := Game.desk_items.any(func(it): return it["kind"] == "slip_old")
+	var n_before := Game.desk_items.size()
+	o.return_papers()
+	await _until(func(): return not o.serving)
+	var kept: bool = Game.desk_items.size() >= n_before and o.papers_layer.get_children().filter(func(p): return p.has_meta("item")).size() >= 3
+	# 버리면 책상에서 사라진다
+	var junk: Paper = o.papers_layer.get_children().filter(func(p): return p.has_meta("item") and p.get_meta("item")["kind"] == "wrapper")[0]
+	o._throw_away(junk)
+	var thrown := not Game.desk_items.any(func(it): return it["kind"] == "wrapper")
+	# 너무 쌓이면 팀장이 한마디
+	for i in 10:
+		o.add_desk_item("flyer")
+	o._check_drops(30.0)
+	var messy := Game.flags.has("messy_11")
+	o.queue_free()
+	await _frames(2)
+	# 저장하면 책상 물건도 남는다
+	Game.save_game()
+	var n_saved := Game.desk_items.size()
+	Game.new_game()
+	Game.load_game()
+	var persisted := Game.desk_items.size() == n_saved and Game.overdraft == 0
+	Game.clear_save()
+	# 편의점: 사면 책상에 놓인다
+	Game.new_game()
+	var shop := Shop.open(self, "출근길")
+	await _frames(1)
+	shop._buy("choco", 1500)
+	var bought := Game.desk_items.size() == 1 and Game.money == 380000 - 1500
+	shop.queue_free()
+	print("desk: varied=%s blocked=%s loaned=%s circular=%s ate=%s slip_left=%s kept=%s thrown=%s messy=%s persisted=%s bought=%s" %
+		[varied, blocked, loaned, circular, ate, slip_left, kept, thrown, messy, persisted, bought])
+	ok = ok and varied and blocked and loaned and circular and ate and slip_left and kept and thrown and messy and persisted and bought
 
 
 ## 연습 창구를 처음부터 끝까지: 틀린 결정은 막히고, 단계가 끝까지 넘어가야 한다
@@ -380,8 +458,9 @@ func _run_days(from: int, to: int) -> void:
 			ok = false
 			return
 		if day == 3:
+			Game.open_overdraft()   # 50만 원이 모자라 마이너스 통장을 연다
 			Game.mom_choice(true)
-		if day == Content.WEEK_END:
+		if day in [Content.WEEK_END, Content.WEEK2_END]:
 			var rep := Game.week_report()
 			print("  WEEK REPORT: %s continue=%s" % [rep["title"], rep.get("continue", false)])
 			if not rep.get("continue", false):

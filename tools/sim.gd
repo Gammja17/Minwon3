@@ -9,7 +9,9 @@ const STORY_DAYS := {"d1_first": 1, "d1_dalsu": 1, "d1_passport": 1, "d1_photo":
 	"d5_auditor": 5, "d5_dalsu": 5,
 	"w2_jiwoo": 6, "w2_reissue": 6, "w2_mansu": 6, "w2_taemin": 7, "w2_mee_again": 7, "w2_mee": 8, "w2_noh_favor": 8,
 	"w2_seoyoung": 9, "w2_dalsu": 9, "w2_donghun": 9, "w2_councilor": 10,
-	"d3_doyun": 3, "d3_doyun_mom": 3, "d4_haneul": 4, "w2_minjae": 6, "w2_hajun": 7, "w2_changsik": 7, "w2_jaehyuk": 8, "w2_minjae2": 10}
+	"d3_doyun": 3, "d3_doyun_mom": 3, "d4_haneul": 4, "w2_minjae": 6, "w2_hajun": 7, "w2_changsik": 7, "w2_jaehyuk": 8, "w2_minjae2": 10,
+	"w3_neighbor": 11, "w3_oksun": 13, "w3_creditor": 12, "w3_birth": 13, "w3_haneul": 12, "w3_wanted": 12, "w3_audit": 13,
+	"w3_hajun": 14, "w3_phishing": 14, "w3_dalsu": 15}
 const FLAG_SETS := [
 	{},
 	{"dalsu_ejected": true, "mee_helped": true, "scam_caught": true, "envelope_refused": true, "dalsu_done": true,
@@ -18,6 +20,12 @@ const FLAG_SETS := [
 	{"scam_done": true, "stalker_given": true, "_rep": 30},
 	{"minjae_fixed": true, "minjae_erased": true},
 	{"minjae_fixed": true, "changsik_told": true},
+	# 판마다 달라지는 속사정
+	{"v_photo": 1, "v_scam": 1, "v_auditor": 1, "v_vip": 1, "v_neighbor": 1, "v_neighbor_face": 1, "v_creditor": 1, "v_birth": 1,
+		"v_phishing": 1, "noh_favor_done": true, "love_dinner": true, "love_lunch": true, "oksun_exposed": true, "haneul_missed": true,
+		"taemin_escaped2": true, "dalsu_done": true, "v_seed": 7},
+	{"v_scam": 2, "v_auditor": 2, "v_creditor": 2, "noh_refused": true, "love_lunch": true, "oksun_found": true, "haneul_ok": true, "v_seed": 11},
+	{"v_neighbor": 0, "oksun_told": true, "v_seed": 3},
 ]
 const STAGE_DROP := ["flaw", "_valid", "_found", "_asked", "needs_call", "_called", "guard_warn", "reason", "custom", "outcomes",
 	"reject_say", "thanks", "again", "asks", "win_flag", "fail_flag", "win_event", "fail_event", "verified_by"]
@@ -56,7 +64,11 @@ func _init() -> void:
 					_fail("dumped #%d" % i, "떠넘긴 민원인에게 돌려보내기 선택지가 없음")
 				_check(d, day, "day%d dumped #%d" % [day, i])
 		print("day %d: %s" % [day, counts])
-	for flags in FLAG_SETS:
+	var wrng := RandomNumberGenerator.new()
+	wrng.seed = 99
+	for base in FLAG_SETS:
+		var flags: Dictionary = base.duplicate()
+		flags["v_wanted"] = CT.make_wanted(wrng)
 		for id in STORY_DAYS:
 			var c: Dictionary = CT.story(id, flags)
 			if c.is_empty():
@@ -173,12 +185,14 @@ func _expected(c: Dictionary, day: int) -> String:
 	var main: Dictionary = {}
 	var proxy: Dictionary = {}
 	var cert: Dictionary = {}
+	var court: Dictionary = {}
 	for d in c["docs"]:
 		match String(d["kind"]):
 			"id": id = d
-			"form", "move", "death_form", "reissue", "lease", "seal_reg": main = d
+			"form", "move", "death_form", "reissue", "lease", "seal_reg", "birth_form": main = d
 			"proxy": proxy = d
-			"death_cert": cert = d
+			"death_cert", "birth_cert": cert = d
+			"judgment", "iou": court = d
 	var R: Dictionary = c["records"]
 	var face := JSON.stringify(c["look"])
 	if main.is_empty():
@@ -222,6 +236,12 @@ func _expected(c: Dictionary, day: int) -> String:
 			if not String(main["new_addr"]).begins_with(CT.OUR_DONG):
 				return "reject"
 			return "process"
+		"birth_form":
+			if cert.is_empty() or cert["child_birth"] != main["child_birth"] or cert["mother"] != main["mother"]:
+				return "reject"
+			if main["reporter"] != id["name"] or not main["reporter"] in [main["father"], main["mother"]]:
+				return "reject"
+			return "process"
 		"death_form":
 			if cert.is_empty() or cert["deceased"] != main["deceased"] or cert["deceased_birth"] != main["deceased_birth"]:
 				return "reject"
@@ -237,6 +257,13 @@ func _expected(c: Dictionary, day: int) -> String:
 		return "reject"
 	if appl != subj and day >= 4 and String(R[subj].get("restrict", "")) != "":
 		return "reject"
+	if main["relation"] == "채권자":
+		# 채권자는 법원 서류가 있어야 채무자 초본만 뗄 수 있다
+		if day < 12 or seal or not String(main["title"]).contains("초본") or court.get("kind", "") != "judgment":
+			return "reject"
+		if court["debtor"] != subj or court["debtor_birth"] != R[subj]["birth"]:
+			return "reject"
+		return "process"
 	if appl != subj:
 		var in_house := false
 		for m in R[subj]["members"]:
@@ -276,6 +303,9 @@ func _check_flaw(c: Dictionary, day: int, tag: String) -> void:
 	if not CT.REASONS.has(f["reason"]) or String(f.get("reply", "")) == "":
 		_fail(tag, "flaw 사유나 반응이 잘못됨: %s" % f)
 	var have := {"face": true, "today": true}
+	if day >= 11:
+		for k in ["look", "name", "age", "how"]:
+			have["wanted." + k] = true   # 책상 위 경찰 회람
 	for d in c.get("docs", []):
 		for k in d:
 			if not k in ["kind", "type", "title"]:

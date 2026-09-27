@@ -6,7 +6,8 @@ const KEY_COLOR := "#8a3b12"
 const TERM_COLOR := "#2c5a8a"
 ## 메모 속에서 굵게 짚어 줄 말
 const KEYWORDS := ["위임장", "세대원", "인감도장", "유효기간", "청원경찰", "전산 사진", "확정일자", "지문 스캐너",
-	"전산 장애", "확인 전화", "사망진단서", "교부 제한", "위조 신분증", "같은 날"]
+	"전산 장애", "확인 전화", "사망진단서", "교부 제한", "위조 신분증", "같은 날", "회람", "판결문", "지급명령", "차용증",
+	"출생증명서", "보이스피싱", "112"]
 
 
 func _ready() -> void:
@@ -19,7 +20,7 @@ func _ready() -> void:
 	exam.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
 	%Header.get_parent().add_child(exam)
 	%Header.get_parent().move_child(exam, 2)
-	%Face.texture = Portrait.texture_for("choi", "happy" if Game.day in [1, 5, 10] else "normal")
+	%Face.texture = Portrait.texture_for("choi", "happy" if Game.day in [1, 5, 10, 15] else "normal")
 	var text := Game.memo_for_today()
 	# 급한 소식은 빨간 상자로 따로
 	var news := ""
@@ -35,6 +36,13 @@ func _ready() -> void:
 	_build_keys()
 	_build_rules()
 	Game.save_game()
+	var shop := Button.new()
+	shop.text = "출근길 편의점 들르기"
+	shop.custom_minimum_size = Vector2(0, 40)
+	shop.add_theme_font_size_override("font_size", 16)
+	shop.pressed.connect(func(): Shop.open(self, "출근길"))
+	%StartBtn.get_parent().add_child(shop)
+	%StartBtn.get_parent().move_child(shop, %StartBtn.get_index())
 	%StartBtn.pressed.connect(func():
 		Game.start_day()
 		get_tree().change_scene_to_file("res://scenes/office.tscn"))
