@@ -5,6 +5,7 @@ extends Node
 
 const SOUNDS := {
 	"call": ["dingdong.ogg"],
+	"ticket": ["ticket.mp3"],
 	"stamp": ["stamp1.ogg", "stamp2.ogg"],
 	"paper": ["paper1.ogg", "paper2.ogg", "paper3.ogg"],
 	"leave": ["cloth1.ogg", "cloth2.ogg"],

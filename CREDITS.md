@@ -14,6 +14,7 @@
 | `step*.ogg`, `heel*.ogg`, `book_*.ogg` | "RPG Audio", "Impact Sounds" by Kenney | CC0 |
 | `click*.ogg`, `pop.ogg`, `notify.ogg`, `hint.ogg`, `ff_*.ogg`, `tick.ogg`, `alarm.ogg`, `bottle.ogg`, `chat.ogg` | "Interface Sounds" by Kenney | CC0 |
 | `dingdong.ogg` | "Airplane, Seatbelt Sign Beep" by Kinoton (Freesound 670297) | CC0 — https://freesound.org/people/Kinoton/sounds/670297/ |
+| `ticket.mp3` | "Thermal Receipt Print & Cut" by twisterad3 (Freesound 413838) | CC0 — https://freesound.org/people/twisterad3/sounds/413838/ |
 | `paper1~3.ogg`, `cloth1~2.ogg`, `coin.ogg` | "RPG Audio" by Kenney — `bookFlip1~3`, `cloth1~2`, `handleCoins` | CC0 — https://kenney.nl/assets/rpg-audio |
 
 ## 초상화 (`assets/portraits/`)
