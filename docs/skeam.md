@@ -24,6 +24,7 @@ SKEAM(KING 동아리의 게임 상점, https://kh32-7.github.io/skeam/)에 웹�
 | `hero.jpg` | 1920×620 | |
 | `screenshots/1~5.jpg` | 1280×720 | |
 
+도전 과제 아이콘은 `store/achievements/` (VARCO 2x2 시트를 `tools/cut_icons.py` 로 자름).
 그림은 `python tools/store_art.py <스크린샷 폴더>` 로 다시 만든다 (스크린샷은 `tools/shot.gd`).
 등록은 사이트의 게임 등록 폼으로 한다 (게임 id `counter-no-3`). 올라간 뒤 SKEAM 저장소의 `games/counter-no-3/game.yml` 에 `store/game.yml` 의 `achievements:` 를 넣는 PR을 보낸다.
 

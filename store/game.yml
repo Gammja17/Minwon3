@@ -19,75 +19,99 @@ achievements:
   - id: tut_done
     name: "수습 딱지"
     desc: "연습 창구를 끝까지 마치세요"
+    icon: achievements/tut_done.png
   - id: first_process
     name: "첫 도장"
     desc: "민원 서류를 규정대로 처리하세요"
+    icon: achievements/first_process.png
   - id: sharp_eye
     name: "매의 눈"
     desc: "돋보기로 서로 안 맞는 두 곳을 찾아내세요"
+    icon: achievements/sharp_eye.png
   - id: right_dept
     name: "길 잃은 민원 없음"
     desc: "우리 창구 일이 아닌 민원인을 알맞은 부서로 안내하세요"
+    icon: achievements/right_dept.png
   - id: calm_down
     name: "먹금의 달인"
     desc: "소리부터 지르는 민원인을 대꾸 없이 진정시키세요"
+    icon: achievements/calm_down.png
   - id: fix_on_spot
     name: "두 줄 긋고 서명"
     desc: "신청서를 잘못 쓴 민원인을 반려하지 않고 그 자리에서 고쳐 쓰게 하세요"
+    icon: achievements/fix_on_spot.png
   - id: note_back
     name: "메모 한 장"
     desc: "창구 유리에 메모를 붙이고 간 민원인이 다시 왔을 때 서류를 떼 주세요"
+    icon: achievements/note_back.png
   # 이야기
   - id: dalsu_served
     name: "박달수 할아버지"
     desc: "창구에서 호통치던 박달수 씨의 등본을 끝까지 떼 드리세요"
+    icon: achievements/dalsu_served.png
   - id: scam_caught
     name: "인감 도둑"
     desc: "훔친 인감으로 꾸민 위임장을 들고 온 사람을 붙잡으세요"
+    icon: achievements/scam_caught.png
   - id: envelope_refused
     name: "청렴 공무원"
     desc: "창구에 슬쩍 놓인 봉투를 거절하세요"
+    icon: achievements/envelope_refused.png
   - id: audit_pass
     name: "몰래 온 감사관"
     desc: "마감이 급하다며 위임장 없이 부탁하는 민원도 규정대로 거절하세요"
+    icon: achievements/audit_pass.png
   - id: taemin_caught
     name: "위조 신분증"
     desc: "전산 사진과 얼굴이 다른 위조 신분증을 잡아내세요"
+    icon: achievements/taemin_caught.png
   - id: councilor_refused
     name: "의원님도 규정대로"
     desc: "구의원의 부탁을 규정대로 거절하세요"
+    icon: achievements/councilor_refused.png
   - id: doyun_done
     name: "퇴근길의 엄마"
     desc: "혼자 온 초등학생의 엄마에게 전화해, 엄마가 직접 등본을 떼 가게 하세요"
+    icon: achievements/doyun_done.png
   - id: minjae_saved
     name: "보증금 지킴이"
     desc: "전세 계약서에 확정일자를 받은 오민재 씨가 보증금을 지키게 하세요"
+    icon: achievements/minjae_saved.png
   - id: haneul_ok
     name: "지문 한 번이면"
     desc: "신분증을 두고 온 수험생이 원서 마감에 늦지 않게 하세요"
+    icon: achievements/haneul_ok.png
   - id: jaehyuk_ok
     name: "촬영은 잠시만"
     desc: "창구를 찍는 유튜버에게 촬영을 멈춰 달라고 한 뒤 서류를 떼 주세요"
+    icon: achievements/jaehyuk_ok.png
   - id: love_dinner
     name: "쪽지의 주인"
     desc: "책상 위 드링크를 놓고 간 사람과 저녁을 먹으세요"
+    icon: achievements/love_dinner.png
   # 딴짓
   - id: mine_clear
     name: "근무 중 지뢰 제거"
     desc: "모니터 딴짓으로 지뢰찾기를 깨세요"
+    icon: achievements/mine_clear.png
   - id: stock_profit
     name: "점심시간 개미"
     desc: "햇살증권으로 10만 원 넘게 버세요"
+    icon: achievements/stock_profit.png
   - id: slack_caught
     name: "현장 적발"
     desc: "딴짓하다 최 팀장에게 들키세요"
+    icon: achievements/slack_caught.png
   # 엔딩
   - id: two_weeks
     name: "2주 완주"
     desc: "마지막 날까지 3번 창구를 지키세요"
+    icon: achievements/two_weeks.png
   - id: grade_s
     name: "이달의 친절 공무원"
     desc: "인사 평가에서 S를 받으세요"
+    icon: achievements/grade_s.png
   - id: fired
     name: "명패를 떼다"
     desc: "봉투를 받았다가 파면당하세요"
+    icon: achievements/fired.png
