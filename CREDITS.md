@@ -24,7 +24,7 @@
 | `bgm.ogg` | "Chill lofi inspired" by omfgdude, loop edit by qubodup (OpenGameArt) | CC0: https://opengameart.org/content/chill-lofi-inspired-loop-edit |
 
 ## 초상화 (`assets/portraits/`)
-이야기 인물 33명(연습 창구의 최 팀장 포함)과 무작위 민원인 48명(`cit01~48`)의 초상화는 이 게임을 위해 VARCO(gpt-image-2.5)로 생성했다. 2×2 표정 시트를 `tools/cut_portraits.py`로 잘라 쓴다.
+이야기 인물 33명(연습 창구의 최 팀장 포함), 수배 회람 속 인물 3명과 무작위 민원인 48명(`cit01~48`)의 초상화는 이 게임을 위해 VARCO(gpt-image-2.5)로 생성했다. 2×2 표정 시트를 `tools/cut_portraits.py`로 잘라 쓴다.
 
 ## 책상 소품 (`assets/ui/`)
 벽, 책상, 창구 틀, 모니터 틀, 처리·반려 도장, 도장 받침, 규정집, 비상벨, 전화, 돋보기, 명패, 휴지통, 메모지, 드링크, 첫 화면 일러스트, 밤의 원룸, 저녁 카드 그림 4장까지 21장은 이 게임을 위해 VARCO(gpt-image-2.5)로 생성했다. 원본은 `assets/ui/src/`에 있고, 화면 크기에 맞게 줄인 사본을 쓴다.

@@ -1359,7 +1359,7 @@ func _build_clutter() -> void:
 	# 3주차 월요일 아침: 경찰서 회람
 	if Game.day == 11 and not Game.flags.has("circular_given"):
 		Game.flags["circular_given"] = true
-		Game.desk_items.append({"kind": "wanted", "x": 640.0, "y": 176.0})
+		Game.desk_items.append({"kind": "wanted", "x": 610.0, "y": 140.0})
 		_sys("(책상 위에 최 팀장이 두고 간 경찰 회람이 있다. 사진 속 얼굴을 기억해 두자)")
 	for it in Game.desk_items:
 		_item_paper(it)
@@ -1372,7 +1372,7 @@ func add_desk_item(kind: String, say := "", extra := {}) -> void:
 		return
 	if Game.desk_items.size() >= Content.DESK_CAP:
 		return
-	var it := {"kind": kind, "x": randf_range(24.0, 860.0), "y": randf_range(186.0, 276.0)}
+	var it := {"kind": kind, "x": randf_range(24.0, 860.0), "y": randf_range(150.0, 230.0)}
 	it.merge(extra)
 	Game.desk_items.append(it)
 	var p := _item_paper(it)
@@ -1389,8 +1389,12 @@ func add_desk_item(kind: String, say := "", extra := {}) -> void:
 func _item_paper(it: Dictionary) -> Paper:
 	var p := _new_paper({"kind": "item"}, _item_card(it), false)
 	p.set_meta("item", it)
-	p.position = Vector2(float(it.get("x", 40.0)), float(it.get("y", 220.0)))
+	p.position = Vector2(float(it.get("x", 40.0)), float(it.get("y", 180.0)))
 	papers_layer.move_child(p, 0)   # 민원인 서류보다 아래에 깔린다
+	# 크기가 정해진 뒤 책상 밖으로 삐져나가지 않게 한다
+	(func():
+		if is_instance_valid(p):
+			p.position = p.position.clamp(PAPER_AREA.position, PAPER_AREA.end - p.size)).call_deferred()
 	return p
 
 
@@ -1420,7 +1424,7 @@ func _item_card(it: Dictionary) -> Control:
 		tex.texture = load(path)
 		tex.expand_mode = TextureRect.EXPAND_IGNORE_SIZE
 		tex.stretch_mode = TextureRect.STRETCH_KEEP_ASPECT_CENTERED
-		tex.custom_minimum_size = Vector2(84, 84)
+		tex.custom_minimum_size = Vector2(64, 64)
 		tex.mouse_filter = Control.MOUSE_FILTER_IGNORE
 		box.add_child(tex)
 	var lbl := DocView._label(String(info[0]), 14, Color("fff3dc"))
@@ -1510,7 +1514,7 @@ func _drop_item(p: Paper, trash := true) -> void:
 ## 이미 책상에 있는 종이(잘못 뽑은 안내문 등)를 책상 물건으로 바꾼다
 func _to_clutter(p: Paper, it: Dictionary) -> void:
 	it["x"] = clampf(p.position.x + randf_range(-30.0, 30.0), 10.0, 860.0)
-	it["y"] = clampf(p.position.y + 60.0, 150.0, 280.0)
+	it["y"] = clampf(p.position.y + 60.0, 120.0, 220.0)
 	p.queue_free()
 	if Game.desk_items.size() < Content.DESK_CAP:
 		Game.desk_items.append(it)

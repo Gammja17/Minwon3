@@ -102,7 +102,7 @@ func _item_card(it: Array) -> Control:
 func _buy(k: String, price: int) -> void:
 	if Game.desk_items.size() >= Content.DESK_CAP or not Game.spend(price):
 		return
-	Game.desk_items.append({"kind": k, "x": randf_range(24.0, 860.0), "y": randf_range(186.0, 276.0)})
+	Game.desk_items.append({"kind": k, "x": randf_range(24.0, 860.0), "y": randf_range(150.0, 230.0)})
 	Sfx.play("coin", -6.0)
 	_refresh()
 

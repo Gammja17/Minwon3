@@ -258,13 +258,22 @@ static func day_queue(day: int, flags: Dictionary, rng: RandomNumberGenerator) -
 	return q
 
 
-## 수배 회람 속 사람: 판마다 얼굴과 이름이 다르다 (위조 신분증에는 남의 이름을 쓴다)
+## 수배 회람 속 사람: 판마다 셋 중 한 얼굴, 이름과 노리는 명의가 다르다.
+## 수배자 얼굴은 무작위 민원인 얼굴 모음에 없어서, 죄 없는 민원인이 회람 속 얼굴과 겹치지 않는다.
+const WANTED_FACES := [
+	{"img": "wanted1", "g": "m", "year": 1988, "skin": 1, "hair": 0, "style": 0, "glasses": false, "age": 0, "shape": 1, "shirt": 0},
+	{"img": "wanted2", "g": "m", "year": 1980, "skin": 1, "hair": 1, "style": 1, "glasses": true, "age": 1, "shape": 2, "shirt": 7},
+	{"img": "wanted3", "g": "f", "year": 1992, "skin": 0, "hair": 1, "style": 2, "glasses": false, "age": 0, "shape": 0, "shirt": 0},
+]
+
+
 static func make_wanted(rng: RandomNumberGenerator) -> Dictionary:
-	var year := rng.randi_range(1976, 1996)
-	var g: String = _pick(["m", "m", "f"], rng)
+	var face: Dictionary = _pick(WANTED_FACES, rng).duplicate()
+	var year: int = face["year"]
+	var g: String = face["g"]
 	var me := _person(rng, year, g)
 	var alias := _person(rng, year + rng.randi_range(-2, 2), g)
-	return {"look": me["look"], "alias": alias["name"], "alias_birth": alias["birth"], "alias_look": _other_look(me["look"], rng),
+	return {"look": face, "alias": alias["name"], "alias_birth": alias["birth"], "alias_look": alias["look"],
 		"alias_addr": _addr(rng, OUR_DONG), "masked": me["name"].left(1) + "○○", "age": "%d0대" % ((2026 - year) / 10)}
 
 
@@ -428,7 +437,7 @@ const FACE_LINES := {
 }
 ## 여자 얼굴 (나머지는 남자)
 const CITIZENS_F := ["cit01", "cit03", "cit05", "cit07", "cit09", "cit11", "cit13", "cit15", "cit18", "cit20", "cit23",
-	"cit26", "cit28", "cit30", "cit32", "cit34", "cit36", "cit40", "cit42", "cit44", "cit46", "cit48"]
+	"cit26", "cit28", "cit30", "cit32", "cit34", "cit36", "cit40", "cit42", "cit44", "cit46", "cit48", "wanted3"]
 const SURNAMES := ["김", "이", "박", "최", "정", "강", "조", "윤", "장", "임", "한", "오", "서", "신", "권", "황", "안", "송", "류", "홍"]
 ## 이름은 성별과 태어난 세대에 맞춘다 [1965년 이전, 1966~1987년, 1988년 이후]
 const GIVEN := {
