@@ -29,8 +29,15 @@ func _ready() -> void:
 		get_tree().change_scene_to_file("res://scenes/office.tscn"))
 	%QuitBtn.pressed.connect(func(): get_tree().quit())
 	%QuitBtn.visible = OS.get_name() != "Web"
+	# 개발용: 주소 끝에 #day11 처럼 붙이면 그날 아침 업무 메모부터 본다
+	var hash := str(JavaScriptBridge.eval("location.hash")) if OS.has_feature("web") else ""
+	if hash.begins_with("#day"):
+		Game.new_game()
+		Game.day = clampi(int(hash.substr(4)), 1, Content.LAST_DAY)
+		get_tree().change_scene_to_file.call_deferred("res://scenes/briefing.tscn")
+		return
 	# 개발용: 주소 끝에 #evening 을 붙이면 저녁 화면을 바로 본다
-	if OS.has_feature("web") and str(JavaScriptBridge.eval("location.hash")) == "#evening":
+	if hash == "#evening":
 		Game.new_game()
 		Game.day = 9
 		Game.flags = {"love_lunch": true}

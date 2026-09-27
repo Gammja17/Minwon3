@@ -8,7 +8,7 @@ play_url: "https://gammja17.github.io/Minwon3/"
 repo: "https://github.com/Gammja17/Minwon3"
 version: "1.0.0"
 tags: ["취미 및 직업 시뮬레이션", "퍼즐", "풍부한 스토리", "캐주얼", "분위기 있는"]
-short: "햇살동 주민센터 신규 주무관의 첫 2주. 서류를 대조하고 도장을 쾅! 진상은 먹금, 남의 일은 알맞은 부서로."
+short: "햇살동 주민센터 신규 주무관의 첫 3주. 서류를 대조하고 도장을 쾅! 진상은 먹금, 남의 일은 알맞은 부서로."
 controls: "마우스: 서류 끌기, 도장 집어서 찍기, 오른쪽 클릭으로 도장 지우기, 돋보기로 안 맞는 두 곳 누르기 / Esc: 도장 내려놓기"
 ai_tools: ["Claude Code"]
 dev_period: "1일"
@@ -102,11 +102,27 @@ achievements:
     name: "현장 적발"
     desc: "딴짓하다 최 팀장에게 들키세요"
     icon: achievements/slack_caught.png
+  - id: crisis_found
+    name: "문 너머의 안부"
+    desc: "연락이 끊긴 이웃을 걱정하는 사람을 복지팀 위기가구로 연결하세요"
+    icon: achievements/crisis_found.png
+  - id: wanted_caught
+    name: "회람 속 그 얼굴"
+    desc: "경찰 회람 속 수배자를 창구에서 붙잡으세요"
+    icon: achievements/wanted_caught.png
+  - id: phishing_stopped
+    name: "검찰은 전화로 안 시켜요"
+    desc: "보이스피싱 전화를 붙든 어르신을 지키세요"
+    icon: achievements/phishing_stopped.png
   # 엔딩
   - id: two_weeks
-    name: "2주 완주"
-    desc: "마지막 날까지 3번 창구를 지키세요"
+    name: "2주 버티기"
+    desc: "2주차 금요일 중간 점검까지 3번 창구를 지키세요"
     icon: achievements/two_weeks.png
+  - id: three_weeks
+    name: "수습 끝"
+    desc: "3주 수습의 마지막 날까지 3번 창구를 지키세요"
+    icon: achievements/three_weeks.png
   - id: grade_s
     name: "이달의 친절 공무원"
     desc: "인사 평가에서 S를 받으세요"
