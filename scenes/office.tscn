@@ -80,10 +80,10 @@ text = "대기 3명"
 [node name="NextBtn" type="Button" parent="Wall"]
 unique_name_in_owner = true
 layout_mode = 0
-offset_left = 224.0
-offset_top = 8.0
-offset_right = 364.0
-offset_bottom = 48.0
+offset_left = 220.0
+offset_top = 4.0
+offset_right = 376.0
+offset_bottom = 52.0
 theme_override_fonts/font = ExtResource("font_bold")
 text = "번호 호출"
 

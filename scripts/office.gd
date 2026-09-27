@@ -85,12 +85,18 @@ var vignette: TextureRect      # 스트레스가 높으면 화면 가장자리�
 var exam_label: Label          # 승진 시험 D-데이
 var drink: TextureButton       # 책상 위 쪽지 붙은 드링크
 var leaving_early := false
+var drag_from := Vector2.ZERO  # 서류를 집은 곳
 
 
 func _ready() -> void:
 	portrait_x = portrait_box.position.x
 	_style()
 	next_btn.pressed.connect(_on_next_btn)
+	# 빈 창구를 눌러도 다음 번호를 부른다 (휴대폰에서 작은 버튼 대신)
+	portrait_box.gui_input.connect(func(e: InputEvent):
+		if e is InputEventMouseButton and e.pressed and e.button_index == MOUSE_BUTTON_LEFT \
+				and not serving and not next_btn.disabled and next_btn.text == "번호 호출":
+			_on_next())
 	stamp_ok.pressed.connect(pick_stamp.bind("ok"))
 	stamp_no.pressed.connect(pick_stamp.bind("no"))
 	guard_btn.pressed.connect(func(): _decide("guard"))
@@ -428,6 +434,7 @@ func _on_paper_pressed(p: Paper, at: Vector2) -> void:
 		return
 	if inspecting:
 		return
+	drag_from = get_global_mouse_position()
 	p.start_drag()
 
 
@@ -516,14 +523,24 @@ func _update_slot() -> void:
 	var ready := serving and not leaving and _decision_ready()
 	slot_label.text = "▲ 여기로 서류를 돌려주기" if ready else "서류 넣는 곳"
 	var pulse := 0.6 + 0.4 * sin(Time.get_ticks_msec() / 200.0)
-	slot_label.add_theme_color_override("font_color", Color(1, 0.85, 0.3, pulse) if ready else Color(0.7, 0.72, 0.75))
+	# 서류를 끌고 범위 안에 들어오면 밝게 켜서, 놓아도 된다는 걸 알려 준다
+	var over := _in_return_zone() and papers_layer.get_children().any(func(q): return q is Paper and q._drag)
+	if over:
+		slot_label.add_theme_color_override("font_color", Color(1, 0.95, 0.6))
+	else:
+		slot_label.add_theme_color_override("font_color", Color(1, 0.85, 0.3, pulse) if ready else Color(0.7, 0.72, 0.75))
+
+
+## 서류 넣는 곳 둘레를 넉넉히 (옆과 위 40, 책상 쪽 80)
+func _in_return_zone() -> bool:
+	return slot.get_global_rect().grow_individual(40, 40, 40, 80).has_point(get_global_mouse_position())
 
 
 func _on_paper_released(p: Paper) -> void:
 	var at := get_global_mouse_position()
 	if %Trash.get_global_rect().grow(8).has_point(at):
 		_throw_away(p)
-	elif slot.get_global_rect().grow(12).has_point(at):
+	elif _in_return_zone() and at.distance_to(drag_from) > 20.0:
 		return_papers()
 
 
