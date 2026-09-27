@@ -6,9 +6,9 @@ extends Node
 
 const PATROL_EVERY := 35.0   # 평균 몇 초에 한 번 지나가나
 const PATROL_WARN := 1.5
-const MINE_W := 9
-const MINE_H := 7
-const MINE_N := 10
+const MINE_W := 10
+const MINE_H := 5
+const MINE_N := 8
 const INK := Color("1f2a36")
 const DIM := Color("4a5561")
 const UP := Color("c0392b")     # 오르면 빨강, 내리면 파랑
@@ -118,8 +118,8 @@ func build() -> void:
 			_stocks(body)
 
 
-func _t(text: String, size := 15, color := INK, bold := false) -> Label:
-	return o._text(text, size, color, bold, 470)
+func _t(text: String, size := 15, color := INK, bold := false, width := 470) -> Label:
+	return o._text(text, size, color, bold, width)
 
 
 func _home(body: VBoxContainer) -> void:
@@ -237,7 +237,7 @@ func open_cell(k: int) -> void:
 
 func _mines(body: VBoxContainer) -> void:
 	var head := HBoxContainer.new()
-	head.add_child(_t({"": "왼쪽 클릭 열기, 오른쪽 클릭 깃발", "win": "다 찾았다! 스트레스가 확 풀린다.", "lose": "펑! 들킬 뻔했다."}[mine_over], 14, DIM))
+	head.add_child(_t({"": "왼쪽 클릭 열기, 오른쪽 클릭 깃발", "win": "다 찾았다! 스트레스가 확 풀린다.", "lose": "펑! 들킬 뻔했다."}[mine_over], 14, DIM, false, 380))
 	var again := Button.new()
 	again.text = "새 판"
 	again.add_theme_font_size_override("font_size", 13)
@@ -253,7 +253,7 @@ func _mines(body: VBoxContainer) -> void:
 	body.add_child(grid)
 	for k in MINE_W * MINE_H:
 		var b := Button.new()
-		b.custom_minimum_size = Vector2(26, 24)
+		b.custom_minimum_size = Vector2(28, 22)
 		b.add_theme_font_size_override("font_size", 13)
 		b.focus_mode = Control.FOCUS_NONE
 		if shown[k] == 1:

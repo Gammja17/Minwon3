@@ -37,7 +37,7 @@ func _render_summary() -> void:
 	if not Game.events.is_empty():
 		t += "\n[color=#ffd479]오늘 있었던 일[/color]\n"
 		for e in Game.events:
-			t += "▸ %s\n" % e
+			t += "■ %s\n" % e
 	var sms := Game.mom_sms()
 	if sms != "":
 		t += "\n[color=#9fd3ff]엄마의 문자[/color]\n%s\n" % sms

@@ -58,7 +58,7 @@ func _emphasize(t: String) -> String:
 func _build_keys() -> void:
 	%KeyList.add_child(_label("오늘의 핵심", 18, Color(KEY_COLOR), true))
 	for k in Content.MEMO_KEYS.get(Game.day, []):
-		%KeyList.add_child(_label("▸ " + String(k), 16, INK, false))
+		%KeyList.add_child(_label("■ " + String(k), 16, INK, false))
 
 
 ## 오른쪽 아래: 오늘부터 바뀌는 규정 카드
