@@ -86,9 +86,14 @@ var exam_label: Label          # 승진 시험 D-데이
 var drink: TextureButton       # 책상 위 쪽지 붙은 드링크
 var leaving_early := false
 var drag_from := Vector2.ZERO  # 서류를 집은 곳
+var empty_since := -1.0        # 누가 기다리는데 창구가 빈 채로 있던 시각 (분)
+var last_waiting := 0          # 대기 인원이 늘면 번호표 소리
+const LATE_MIN := 15.0         # 이만큼 비워 두고 부르면 손님이 짜증 낸다 (게임 분)
 
 
 func _ready() -> void:
+	Sfx.enter(true)
+	last_waiting = Game.waiting
 	portrait_x = portrait_box.position.x
 	_style()
 	next_btn.pressed.connect(_on_next_btn)
@@ -202,6 +207,7 @@ func _process(delta: float) -> void:
 			_sys("18:00 마감 시간이에요. 지금 앞에 계신 분까지만 처리하세요.")
 		_refresh_all()
 	_check_patience()
+	_check_counter()
 	_check_events()
 	if holding != "":
 		stamp_cursor.global_position = get_global_mouse_position() - Vector2(70, 30)
@@ -269,6 +275,17 @@ func _check_patience() -> void:
 		Game.apply({"rep": -1})
 
 
+## 번호표를 뽑는 소리, 그리고 사람이 기다리는데 창구를 비워 둔 시간
+func _check_counter() -> void:
+	if Game.waiting > last_waiting:
+		Sfx.play("ticket", -12.0)
+	last_waiting = Game.waiting
+	if serving or Game.waiting == 0 or next_btn.disabled:
+		empty_since = -1.0
+	elif empty_since < 0.0:
+		empty_since = Game.clock
+
+
 func _refresh_top() -> void:
 	var t := int(Game.clock)
 	clock_label.text = "%02d:%02d" % [t / 60, t % 60]
@@ -289,6 +306,8 @@ func _on_next() -> void:
 		_end_day()
 		return
 	overlay.visible = false
+	# 대기실에선 빈 창구가 보인다. 한참 비워 두고 부르면 짜증을 낸다.
+	var late := empty_since >= 0.0 and Game.clock - empty_since >= LATE_MIN and not Game.tutorial
 	c = Game.next_case()
 	c["_start"] = Game.clock
 	picked.clear()
@@ -299,15 +318,18 @@ func _on_next() -> void:
 	log_box.clear()
 	_sys("딩동! %d번 고객님, 3번 창구로 오세요." % c["ticket"])
 	ticket_label.text = "%d" % c["ticket"]
-	portrait.set_face(c["look"], c.get("mood", "normal"))
+	late = late and not c.get("story", false)
+	portrait.set_face(c["look"], "angry" if late else c.get("mood", "normal"))
 	portrait_box.position.x = portrait_x - 260
 	portrait_box.modulate.a = 0.0
 	var tw := create_tween().set_parallel()
 	tw.tween_property(portrait_box, "position:x", portrait_x, 0.35).set_trans(Tween.TRANS_QUAD).set_ease(Tween.EASE_OUT)
 	tw.tween_property(portrait_box, "modulate:a", 1.0, 0.25)
 	Sfx.play("call")
-	get_tree().create_timer(0.3).timeout.connect(Sfx.play.bind("door", -10.0))
 	get_tree().create_timer(0.55).timeout.connect(Sfx.steps.bind(3))
+	if late:
+		_say_them(Content.LATE_LINES.pick_random())
+		Game.apply({"rep": -1})
 	for line in c["intro"]:
 		_say_them(line)
 	_build_docs()
@@ -1433,9 +1455,9 @@ func _show_rules() -> void:
 func _card(accent: Color) -> PanelContainer:
 	var card := PanelContainer.new()
 	var sb := StyleBoxFlat.new()
-	sb.bg_color = Color(1, 1, 1, 0.05)
-	sb.border_color = accent
-	sb.border_width_left = 4
+	sb.bg_color = Color(accent, 0.1)
+	sb.border_color = Color(accent, 0.6)
+	sb.set_border_width_all(1)
 	sb.set_corner_radius_all(4)
 	sb.content_margin_left = 14
 	sb.content_margin_right = 12
@@ -1508,6 +1530,8 @@ func _on_pick(fid: String, node: Control, ev: String) -> void:
 					_set_mark(p[1], "flaw" if ok else "none")
 				picked.clear()
 				_refresh_top()
+				if ok:
+					inspect_btn.button_pressed = false   # 맞히면 돋보기를 내려놓는다
 
 
 ## 두 칸이 이 민원의 틀린 곳이면 민원인이 반응한다

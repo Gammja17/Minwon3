@@ -61,12 +61,6 @@ func _process(delta: float) -> void:
 	if calm_acc >= 3.0:
 		calm_acc = 0.0
 		Game.add_stress(-1)
-	# 손님 앞에서 딴짓: 손님이 먼저 본다 (한 사람에 한 번)
-	if o.serving and not o.leaving and not o.c.get("_saw_slack", false):
-		o.c["_saw_slack"] = true
-		o._say_them("저기요, 거기 딴짓하는 거 다 보여요!")
-		Game.apply({"rep": -1, "stress": 2})
-		o._refresh_top()
 	if patrol > 0.0:
 		patrol -= delta
 		banner.modulate.a = 0.6 + 0.4 * sin(Time.get_ticks_msec() / 60.0)

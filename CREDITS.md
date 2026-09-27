@@ -9,10 +9,11 @@
 ## 효과음 (`assets/sfx/`)
 | 파일 | 원본 | 라이선스 |
 |---|---|---|
-| `call.ogg`, `phone.ogg`, `warn.ogg` | "Interface Sounds" by Kenney — `bong_001`, `question_002`, `error_004` | CC0 — https://kenney.nl/assets/interface-sounds |
+| `phone.ogg`, `warn.ogg` | "Interface Sounds" by Kenney — `question_002`, `error_004` | CC0 — https://kenney.nl/assets/interface-sounds |
 | `stamp1~2.ogg`, `glass1~2.ogg`, `bell.ogg` | "Impact Sounds" by Kenney — `impactWood_heavy`, `impactGlass`, `impactBell_heavy` | CC0 — https://kenney.nl/assets/impact-sounds |
-| `door*.ogg`, `step*.ogg`, `heel*.ogg`, `book_*.ogg` | "RPG Audio", "Impact Sounds" by Kenney | CC0 |
+| `step*.ogg`, `heel*.ogg`, `book_*.ogg` | "RPG Audio", "Impact Sounds" by Kenney | CC0 |
 | `click*.ogg`, `pop.ogg`, `notify.ogg`, `hint.ogg`, `ff_*.ogg`, `tick.ogg`, `alarm.ogg`, `bottle.ogg`, `chat.ogg` | "Interface Sounds" by Kenney | CC0 |
+| `dingdong.ogg` | "Airplane, Seatbelt Sign Beep" by Kinoton (Freesound 670297) | CC0 — https://freesound.org/people/Kinoton/sounds/670297/ |
 | `paper1~3.ogg`, `cloth1~2.ogg`, `coin.ogg` | "RPG Audio" by Kenney — `bookFlip1~3`, `cloth1~2`, `handleCoins` | CC0 — https://kenney.nl/assets/rpg-audio |
 
 ## 초상화 (`assets/portraits/`)

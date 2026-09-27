@@ -302,8 +302,15 @@ func _run_slack() -> void:
 			hc = t
 			break
 	Game.queue = [hc]
+	# 대기자가 있는데 창구를 한참 비워 두고 부르면 손님이 짜증 낸다
+	o.empty_since = Game.clock - 20.0
+	var rep0: int = Game.rep
 	o._on_next()
 	await _frames(2)
+	var log_text: String = o.log_box.get_parsed_text().replace(char(0x2060), "")
+	var late_ok: bool = Game.rep < rep0 and Content.LATE_LINES.any(func(l): return log_text.contains(l))
+	print("late call: %s" % late_ok)
+	ok = ok and late_ok
 	var noh0: int = Game.noh
 	for i in 4:
 		o._hint()

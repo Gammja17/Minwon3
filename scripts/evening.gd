@@ -11,6 +11,7 @@ const CHOICES := [
 
 
 func _ready() -> void:
+	Sfx.enter(false)
 	var sb := StyleBoxFlat.new()
 	sb.bg_color = Color(0.07, 0.07, 0.11, 0.86)
 	sb.set_corner_radius_all(8)

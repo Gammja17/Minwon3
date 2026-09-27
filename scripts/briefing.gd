@@ -10,6 +10,7 @@ const KEYWORDS := ["위임장", "세대원", "인감도장", "유효기간", "�
 
 
 func _ready() -> void:
+	Sfx.enter(false)
 	%Paper.add_theme_stylebox_override("panel", _box(Color("f3eee2"), Color("f3eee2"), 28))
 	%Keys.add_theme_stylebox_override("panel", _box(Color("fff4c7"), Color("e0c56a"), 14))
 	%News.add_theme_stylebox_override("panel", _box(Color("a8322a"), Color("a8322a"), 14))
@@ -73,9 +74,7 @@ func _build_rules() -> void:
 	%Rules.add_child(_label("오늘부터 바뀌는 규정", 17, Color(KEY_COLOR), true))
 	for r in rules:
 		var card := PanelContainer.new()
-		var sb := _box(Color("fffaf0"), Color("d9c7a3"), 12)
-		sb.border_width_left = 6
-		sb.border_color = Color(KEY_COLOR)
+		var sb := _box(Color(KEY_COLOR).lerp(Color.WHITE, 0.92), Color(KEY_COLOR).lerp(Color.WHITE, 0.55), 12)
 		card.add_theme_stylebox_override("panel", sb)
 		var v := VBoxContainer.new()
 		v.add_theme_constant_override("separation", 4)

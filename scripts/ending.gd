@@ -3,6 +3,7 @@ extends Control
 
 
 func _ready() -> void:
+	Sfx.enter(false)
 	var e := Game.week_report() if Game.day == Content.WEEK_END and Game.fail_reason == "" else Game.ending()
 	%Title.text = e["title"]
 	var title: String = e["title"]

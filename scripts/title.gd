@@ -10,6 +10,7 @@ var confirm := {}   # 덮어쓰기 확인 중인 칸
 
 
 func _ready() -> void:
+	Sfx.enter(false)
 	var g := Gradient.new()
 	g.set_color(0, Color(0.06, 0.05, 0.05, 0.92))
 	g.set_color(1, Color(0.06, 0.05, 0.05, 0.0))
@@ -37,13 +38,13 @@ func _ready() -> void:
 		get_tree().change_scene_to_file.call_deferred("res://scenes/evening.tscn")
 
 
-## 번호표처럼 생긴 버튼: 크림색 종이, 왼쪽에 빨간 띠
+## 크림색 종이 버튼
 func _ticket(b: Button) -> void:
 	for st in ["normal", "hover", "pressed", "focus"]:
 		var sb := StyleBoxFlat.new()
 		sb.bg_color = {"normal": Color("f3ead6"), "hover": Color("fff7e4"), "pressed": Color("e2d6bd"), "focus": Color("f3ead6")}[st]
-		sb.border_color = Color("c0392b")
-		sb.border_width_left = 10
+		sb.border_color = Color("9c8a66")
+		sb.set_border_width_all(2)
 		sb.set_corner_radius_all(4)
 		sb.shadow_color = Color(0, 0, 0, 0.35)
 		sb.shadow_size = 4
@@ -63,7 +64,7 @@ func _open_slots() -> void:
 	slots.set_anchors_preset(Control.PRESET_FULL_RECT)
 	add_child(slots)
 	var dim := ColorRect.new()
-	dim.color = Color(0, 0, 0, 0.6)
+	dim.color = Color(0, 0, 0, 0.85)
 	dim.set_anchors_preset(Control.PRESET_FULL_RECT)
 	slots.add_child(dim)
 	var box := VBoxContainer.new()
@@ -94,28 +95,47 @@ func _open_slots() -> void:
 	box.add_child(close)
 
 
-## 서류철 한 권: 며칠째인지, 평판과 잔고, 공부
+## 서류철 한 권: 위에 이름 탭, 안에 며칠째인지, 평판과 잔고, 공부
 func _slot_card(s: int) -> Control:
 	var info := Game.save_info(s)
+	var paper := Color("e8d49a") if not info.is_empty() else Color("cfc6b0")
+	var folder := VBoxContainer.new()
+	folder.add_theme_constant_override("separation", 0)
+	var tab := PanelContainer.new()
+	tab.size_flags_horizontal = Control.SIZE_SHRINK_BEGIN
+	var tsb := StyleBoxFlat.new()
+	tsb.bg_color = paper
+	tsb.border_color = Color("9c7b3c")
+	tsb.set_border_width_all(3)
+	tsb.border_width_bottom = 0
+	tsb.corner_radius_top_left = 6
+	tsb.corner_radius_top_right = 6
+	tsb.set_content_margin_all(8)
+	tsb.content_margin_left = 16
+	tsb.content_margin_right = 16
+	tab.add_theme_stylebox_override("panel", tsb)
+	tab.add_child(_label("서류철 %d" % s, 24, INK, PIXEL))
+	folder.add_child(tab)
 	var card := PanelContainer.new()
-	card.custom_minimum_size = Vector2(300, 330)
+	card.custom_minimum_size = Vector2(300, 270)
 	var sb := StyleBoxFlat.new()
-	sb.bg_color = Color("e8d49a") if not info.is_empty() else Color("cfc6b0")
+	sb.bg_color = paper
 	sb.border_color = Color("9c7b3c")
 	sb.set_border_width_all(3)
-	sb.border_width_top = 18
 	sb.set_corner_radius_all(6)
+	sb.corner_radius_top_left = 0
 	sb.set_content_margin_all(18)
 	card.add_theme_stylebox_override("panel", sb)
+	folder.add_child(card)
 	var v := VBoxContainer.new()
 	v.add_theme_constant_override("separation", 10)
 	card.add_child(v)
-	v.add_child(_label("서류철 %d" % s, 28, INK, PIXEL))
 	if info.is_empty():
-		v.add_child(_label("비어 있음", 20, Color("6b6152"), BOLD))
-		var gap := Control.new()
-		gap.size_flags_vertical = Control.SIZE_EXPAND_FILL
-		v.add_child(gap)
+		var empty := _label("비어 있음", 20, Color("6b6152"), BOLD)
+		empty.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
+		empty.vertical_alignment = VERTICAL_ALIGNMENT_CENTER
+		empty.size_flags_vertical = Control.SIZE_EXPAND_FILL
+		v.add_child(empty)
 	else:
 		var d := clampi(int(info.get("day", 1)), 1, Content.LAST_DAY)
 		v.add_child(_label("%s 아침" % Content.DATES[d - 1].substr(6), 20, INK, BOLD))
@@ -145,7 +165,7 @@ func _slot_card(s: int) -> Control:
 		Game.slot = s
 		get_tree().change_scene_to_file("res://scenes/briefing.tscn"))
 	v.add_child(fresh)
-	return card
+	return folder
 
 
 func _label(text: String, size: int, color: Color, font: Font) -> Label:
