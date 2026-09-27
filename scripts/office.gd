@@ -1372,7 +1372,8 @@ func add_desk_item(kind: String, say := "", extra := {}) -> void:
 		return
 	if Game.desk_items.size() >= Content.DESK_CAP:
 		return
-	var it := {"kind": kind, "x": randf_range(24.0, 860.0), "y": randf_range(150.0, 230.0)}
+	var spot := Game.free_desk_spot()
+	var it := {"kind": kind, "x": spot.x, "y": spot.y}
 	it.merge(extra)
 	Game.desk_items.append(it)
 	var p := _item_paper(it)
@@ -1390,7 +1391,9 @@ func _item_paper(it: Dictionary) -> Paper:
 	var p := _new_paper({"kind": "item"}, _item_card(it), false)
 	p.set_meta("item", it)
 	p.position = Vector2(float(it.get("x", 40.0)), float(it.get("y", 180.0)))
-	papers_layer.move_child(p, 0)   # 민원인 서류보다 아래에 깔린다
+	# 책상 물건 가운데 맨 위, 민원인 서류보다는 아래
+	var below := papers_layer.get_children().filter(func(q): return q != p and q.has_meta("item")).size()
+	papers_layer.move_child(p, below)
 	# 크기가 정해진 뒤 책상 밖으로 삐져나가지 않게 한다
 	(func():
 		if is_instance_valid(p):
@@ -1513,8 +1516,9 @@ func _drop_item(p: Paper, trash := true) -> void:
 
 ## 이미 책상에 있는 종이(잘못 뽑은 안내문 등)를 책상 물건으로 바꾼다
 func _to_clutter(p: Paper, it: Dictionary) -> void:
-	it["x"] = clampf(p.position.x + randf_range(-30.0, 30.0), 10.0, 860.0)
-	it["y"] = clampf(p.position.y + 60.0, 120.0, 220.0)
+	var spot := Game.free_desk_spot()
+	it["x"] = spot.x
+	it["y"] = spot.y
 	p.queue_free()
 	if Game.desk_items.size() < Content.DESK_CAP:
 		Game.desk_items.append(it)

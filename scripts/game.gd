@@ -237,6 +237,21 @@ func open_overdraft() -> void:
 	add_stress(3)
 
 
+## 책상 위 빈자리: 다른 물건과 가장 먼 곳 (왼쪽 아래 명패 자리는 피한다)
+func free_desk_spot() -> Vector2:
+	var best := Vector2(400, 160)
+	var best_d := -1.0
+	for i in 12:
+		var cand := Vector2(randf_range(230.0, 880.0), randf_range(110.0, 200.0))
+		var d := 9999.0
+		for it in desk_items:
+			d = minf(d, cand.distance_to(Vector2(float(it.get("x", 0)), float(it.get("y", 0)))))
+		if d > best_d:
+			best_d = d
+			best = cand
+	return best
+
+
 ## 잔고 표시: 마이너스면 통장에서 끌어다 쓴 돈
 func money_text() -> String:
 	if money < 0:
