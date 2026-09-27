@@ -81,6 +81,10 @@ var unread := 0
 var tutorial: Tutorial = null   # 연습 창구일 때만
 var notes_layer: Control       # 창구 유리에 붙은 메모들
 var slack: Slack               # 모니터 딴짓
+var vignette: TextureRect      # 스트레스가 높으면 화면 가장자리가 붉어진다
+var exam_label: Label          # 승진 시험 D-데이
+var drink: TextureButton       # 책상 위 쪽지 붙은 드링크
+var leaving_early := false
 
 
 func _ready() -> void:
@@ -92,7 +96,9 @@ func _ready() -> void:
 	guard_btn.pressed.connect(func(): _decide("guard"))
 	rules_btn.pressed.connect(_show_rules)
 	inspect_btn.toggled.connect(_set_inspect)
-	%CloseBtn.pressed.connect(func(): overlay.visible = false)
+	%CloseBtn.pressed.connect(func():
+		overlay.visible = false
+		Sfx.play("book_close", -6.0))
 	phone_btn.about_to_popup.connect(_build_phone_menu)
 	phone_btn.get_popup().id_pressed.connect(_on_phone)
 	phone_btn.get_popup().add_theme_font_size_override("font_size", 16)
@@ -115,6 +121,9 @@ func _ready() -> void:
 	slack = Slack.new()
 	add_child(slack)
 	slack.setup(self)
+	_build_vignette()
+	_build_exam_label()
+	_build_drink()
 	%TabSlack.visible = not Game.tutorial
 	notes_layer = Control.new()
 	notes_layer.set_anchors_preset(Control.PRESET_FULL_RECT)
@@ -194,8 +203,12 @@ func _process(delta: float) -> void:
 	_update_next_btn()
 	if notes_layer:
 		_pulse_note()
-	if Game.stress >= 100:
-		_go_ending()
+	_update_stress_look()
+	if Game.stress >= 100 and not leaving_early:
+		if Game.can_leave_early() and not Game.tutorial:
+			_leave_early()
+		else:
+			_go_ending()
 
 
 func _unhandled_input(e: InputEvent) -> void:
@@ -287,6 +300,8 @@ func _on_next() -> void:
 	tw.tween_property(portrait_box, "position:x", portrait_x, 0.35).set_trans(Tween.TRANS_QUAD).set_ease(Tween.EASE_OUT)
 	tw.tween_property(portrait_box, "modulate:a", 1.0, 0.25)
 	Sfx.play("call")
+	get_tree().create_timer(0.3).timeout.connect(Sfx.play.bind("door", -10.0))
+	get_tree().create_timer(0.55).timeout.connect(Sfx.steps.bind(3))
 	for line in c["intro"]:
 		_say_them(line)
 	_build_docs()
@@ -305,6 +320,7 @@ func _idle() -> bool:
 func _on_next_btn() -> void:
 	if _idle():
 		Game.speed = 1.0 if Game.speed > 1.0 else 5.0
+		Sfx.play("ff_on" if Game.speed > 1.0 else "ff_off", -6.0)
 		_update_next_btn()
 		return
 	_on_next()
@@ -514,7 +530,7 @@ func _on_paper_released(p: Paper) -> void:
 ## 휴지통: 내가 만든 종이(안내문·반려 사유서)만 버린다. 민원인이 낸 서류는 버릴 수 없다.
 func _throw_away(p: Paper) -> void:
 	var k: String = p.doc.get("kind", "")
-	if k != "slip" and k != "reason":
+	if not k in ["slip", "reason", "love_note"]:
 		_sys("(민원인이 낸 서류는 버릴 수 없다)")
 		create_tween().tween_property(p, "position:y", p.position.y - 70, 0.2).set_ease(Tween.EASE_OUT)
 		return
@@ -681,6 +697,10 @@ func _build_phone_menu() -> void:
 	if sos_available():
 		pop.add_item("2층 복지팀에 SOS", 1)
 		any = true
+	if serving and not leaving and not Game.tutorial:
+		pop.add_item("옆자리 노 주무관에게 슬쩍 묻기 (오늘 %d번 남음)" % Game.hints_left, 2)
+		pop.set_item_disabled(pop.item_count - 1, Game.hints_left <= 0)
+		any = true
 	if not any:
 		pop.add_item("지금은 걸 곳이 없다", 9)
 		pop.set_item_disabled(pop.item_count - 1, true)
@@ -692,6 +712,8 @@ func _on_phone(id: int) -> void:
 			_call()
 		1:
 			_decide("sos")
+		2:
+			_hint()
 
 
 ## 인감 대리 발급 때 위임자에게 확인 전화를 건다
@@ -922,7 +944,7 @@ func _leave() -> void:
 	var tw := create_tween().set_parallel()
 	tw.tween_property(portrait_box, "position:x", portrait_x + 260, 0.35).set_trans(Tween.TRANS_QUAD).set_ease(Tween.EASE_IN)
 	tw.tween_property(portrait_box, "modulate:a", 0.0, 0.3)
-	Sfx.play("leave", -6.0)
+	Sfx.steps(4, "step", 0.2, -12.0)
 	await tw.finished
 	serving = false
 	leaving = false
@@ -1065,7 +1087,7 @@ func _add_note_view(n: Dictionary, fresh: bool) -> void:
 		var tw := create_tween().set_parallel()
 		tw.tween_property(v, "scale", Vector2.ONE, 0.18).set_ease(Tween.EASE_OUT)
 		tw.tween_property(v, "modulate:a", 1.0, 0.12)
-		Sfx.play("paper", -4.0)
+		Sfx.play("pop", -4.0)
 
 
 ## 메모 주인이 다녀가면 떼어 낸다
@@ -1085,6 +1107,172 @@ func _pulse_note() -> void:
 	for v in notes_layer.get_children():
 		var on := int(v.get_meta("note_id", -2)) == id
 		v.modulate = Color(1.2, 1.15, 0.8) * (0.8 + 0.2 * sin(Time.get_ticks_msec() / 150.0)) if on else Color.WHITE
+
+
+# ─────────────────────────── 힌트 · 스트레스 · 드링크 ───────────────────────────
+
+## 옆자리 노 주무관에게 슬쩍 묻는다. 하루 세 번, 자꾸 물으면 투덜대고 호감이 준다.
+func _hint() -> void:
+	if Game.hints_left <= 0 or not serving or leaving:
+		return
+	var n := 3 - Game.hints_left   # 오늘 몇 번째인지 (0부터)
+	if Game.noh < 25:
+		_log("[b][color=%s]노 주무관[/color][/b]  ......알아서 해. 나도 바빠.\n" % C_THEM)
+		Sfx.play("warn", -8.0)
+		return
+	Game.hints_left -= 1
+	Game.hints_used += 1
+	Sfx.play("hint", -6.0)
+	Game.pass_time(1)
+	var grumble: String = ["", "또? ......알았어, 봐 줄게. ", "3번, 이번이 진짜 마지막이다. 커피 한 잔 사. "][n]
+	Game.noh = clampi(Game.noh - [0, 2, 4][n], 0, 100)
+	_log("[color=%s][i](옆자리 노 주무관이 의자를 슬쩍 밀고 와서 서류를 넘겨다본다)[/i][/color]\n" % C_ACT)
+	var say := ""
+	var flash := ""
+	var correct: String = c.get("correct", "")
+	if c.get("phase") == "hostile":
+		say = "저런 분은 그냥 둬. 대꾸하면 길어져. 손이 올라가면 비상벨이고."
+	elif c.has("hint"):
+		say = c["hint"]
+	elif correct.begins_with("transfer:"):
+		say = "그거 우리 일 아니야. 모니터 [부서 안내] 봐."
+	elif c.get("needs_call", false) and not c.get("_called", false):
+		say = "인감 대리 발급이면 위임자한테 전화부터 해야지."
+	elif correct == "guard":
+		say = "뭔가 쎄한데. 전산 사진이나 빨간 [주의] 칸 잘 봐. 이상하면 반려 말고 비상벨이야."
+	elif c.has("flaw") and not c["flaw"].get("pairs", []).is_empty():
+		say = Content.HINTS.get(String(c["flaw"]["reason"]), "뭔가 안 맞는 데가 있어. 잘 봐.")
+		flash = String(c["flaw"]["pairs"][0][0])
+	elif c.has("custom") and not correct in ["process", "reject"]:
+		say = "그건 규정집에 나와. 한번 펴 봐."
+	else:
+		say = "내가 보기엔 문제없어 보이는데? 도장 찍어."
+	_log("[b][color=%s]노 주무관[/color][/b]  %s%s\n" % [C_THEM, grumble, say])
+	if flash != "":
+		var node := _find_node_fid(self, flash)
+		if node:
+			_paint(node, "select")
+			get_tree().create_timer(2.5).timeout.connect(func():
+				if is_instance_valid(node):
+					_paint(node, node.get_meta("mark", "none")))
+	_refresh_top()
+
+
+func _find_node_fid(n: Node, fid: String) -> Control:
+	if n.has_meta("fid") and n.get_meta("fid") == fid:
+		return n
+	for ch in n.get_children():
+		var r := _find_node_fid(ch, fid)
+		if r:
+			return r
+	return null
+
+
+## 스트레스가 80을 넘으면 가장자리가 붉게 물들고, 하루 한 번 최 팀장이 걱정한다
+func _build_vignette() -> void:
+	var g := Gradient.new()
+	g.set_color(0, Color(0.7, 0.05, 0.05, 0.0))
+	g.set_color(1, Color(0.7, 0.05, 0.05, 0.85))
+	g.set_offset(0, 0.55)
+	var tex := GradientTexture2D.new()
+	tex.gradient = g
+	tex.fill = GradientTexture2D.FILL_RADIAL
+	tex.fill_from = Vector2(0.5, 0.5)
+	tex.fill_to = Vector2(1.0, 1.0)
+	tex.width = 128
+	tex.height = 72
+	vignette = TextureRect.new()
+	vignette.texture = tex
+	vignette.expand_mode = TextureRect.EXPAND_IGNORE_SIZE
+	vignette.stretch_mode = TextureRect.STRETCH_SCALE
+	vignette.set_anchors_preset(Control.PRESET_FULL_RECT)
+	vignette.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	vignette.modulate.a = 0.0
+	add_child(vignette)
+
+
+func _update_stress_look() -> void:
+	if not vignette:
+		return
+	var t := clampf((Game.stress - 75.0) / 25.0, 0.0, 1.0)
+	vignette.modulate.a = t * (0.75 + 0.25 * sin(Time.get_ticks_msec() / 300.0))
+	var key := "stress_warn_%d" % Game.day
+	if Game.stress >= 80 and not Game.flags.has(key) and not Game.tutorial:
+		Game.flags[key] = true
+		Sfx.play("alarm", -4.0)
+		var extra := "" if Game.can_leave_early() else " 이번 주는 이미 한 번 조퇴했어요. 한 번 더 쓰러지면 병가예요."
+		_slip("최 팀장 메모: 얼굴이 너무 안 좋아요. 잠깐 숨 돌려요. 모니터 딴짓 정도는 못 본 척할게요." + extra, SLIP_BAD)
+
+
+## 스트레스가 끝까지 찼다: 이번 주 처음이면 최 팀장이 조퇴시켜 준다
+func _leave_early() -> void:
+	leaving_early = true
+	Game.flags["early_w%d" % Game.week()] = true
+	Sfx.play("alarm")
+	_log("[color=%s][i](눈앞이 핑 돈다. 최 팀장이 다가와 어깨를 짚는다)[/i][/color]\n" % C_ACT)
+	_log("[b][color=%s]최 팀장[/color][/b]  오늘은 들어가요. 남은 분들은 제가 볼게요. 대신 이번 주에 또 이러면 저도 못 막아요.\n" % C_THEM)
+	Game.apply({"rep": -3})
+	Game.stress = 60
+	Game.waiting = 0
+	Game.events.append("스트레스로 쓰러질 뻔해서 조퇴했다. 남은 민원은 최 팀장이 받았다.")
+	await get_tree().create_timer(2.5).timeout
+	if not is_inside_tree():
+		return
+	Game.clock = Game.DAY_END
+	_end_day()
+
+
+## 벽: 승진 시험 D-데이와 공부 횟수
+func _build_exam_label() -> void:
+	exam_label = Label.new()
+	exam_label.position = Vector2(810, 17)
+	exam_label.size = Vector2(460, 26)
+	exam_label.horizontal_alignment = HORIZONTAL_ALIGNMENT_RIGHT
+	exam_label.add_theme_font_override("font", BOLD)
+	exam_label.add_theme_font_size_override("font_size", 16)
+	exam_label.add_theme_color_override("font_color", Color("c7d2de"))
+	exam_label.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	exam_label.text = "승진 시험 D-%d   공부 %d/%d" % [Game.d_day(), Game.study, Content.EXAM_STUDY]
+	%Wall.add_child(exam_label)
+
+
+## 아침 책상 위에 쪽지 붙은 드링크가 놓인 날
+func _build_drink() -> void:
+	if Game.tutorial:
+		return
+	var note := ""
+	for n in Content.LOVE_NOTES:
+		if int(n[0]) == Game.day and (String(n[2]) == "" or Game.flags.has(n[2])):
+			note = n[1]
+	if note == "" or Game.flags.has("drink_%d" % Game.day):
+		return
+	drink = TextureButton.new()
+	drink.texture_normal = preload("res://assets/ui/drink.png")
+	drink.ignore_texture_size = true
+	drink.stretch_mode = TextureButton.STRETCH_KEEP_ASPECT_CENTERED
+	drink.position = Vector2(226, 268)
+	drink.size = Vector2(56, 72)
+	drink.tooltip_text = "누가 놓고 간 드링크"
+	drink.mouse_default_cursor_shape = Control.CURSOR_POINTING_HAND
+	desk.add_child(drink)
+	desk.move_child(drink, papers_layer.get_index())
+	drink.pressed.connect(_open_drink.bind(note))
+
+
+func _open_drink(note: String) -> void:
+	Game.flags["drink_%d" % Game.day] = true
+	Sfx.play("bottle")
+	Game.add_stress(-5)
+	drink.queue_free()
+	var rows := [DocView._label(note, 17, Color("3a2a12"))]
+	rows[0].autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
+	rows[0].text = DocView.keep_words(note)
+	var card := DocView._paper("드링크에 붙은 노란 쪽지", rows, null, Color("fff3a8"))
+	card.custom_minimum_size.x = 300
+	var p := _new_paper({"kind": "love_note"}, card, false)
+	p.position = Vector2(300, 150)
+	_sys("(드링크를 마셨다. 조금 힘이 난다)")
+	_refresh_top()
 
 
 func _end_day() -> void:
@@ -1190,6 +1378,8 @@ func _slip(text: String, color: Color) -> void:
 		who = "최 팀장"
 		body = text.substr(text.find(":") + 1).strip_edges()
 	_msg(who, body, Color("b3261e") if color == SLIP_BAD else Color("2f6a3e"))
+	if color == SLIP_GOOD:
+		Sfx.play("notify", -10.0)
 	var sb := StyleBoxFlat.new()
 	sb.bg_color = color
 	sb.set_content_margin_all(8)
@@ -1208,6 +1398,7 @@ func _slip(text: String, color: Color) -> void:
 # ─────────────────────────── 규정집 바인더 ───────────────────────────
 
 func _show_rules() -> void:
+	Sfx.play("book_open", -6.0)
 	_clear_overlay("규정집")
 	for r in Game.rules_so_far():
 		var is_new: bool = r["day"] == Game.day and Game.day > 1
@@ -1260,6 +1451,8 @@ func _text(t: String, font_size: int, color: Color, bold := false, width := 680)
 func _set_inspect(on: bool) -> void:
 	inspecting = on
 	inspect_hint.visible = on
+	if exam_label:
+		exam_label.visible = not on
 	inspect_btn.modulate = Color(1.25, 1.15, 0.6) if on else Color.WHITE
 	portrait.mouse_filter = Control.MOUSE_FILTER_STOP if on else Control.MOUSE_FILTER_IGNORE
 	if on:

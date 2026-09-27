@@ -50,8 +50,12 @@ var dalsu_used := false    # 박달수 씨 대기실 도우미 (하루 한 번)
 var notes: Array = []      # 창구 유리에 붙은 "좀 이따 다시 올게요" 메모 [{id, name, what, time}]
 var note_seq := 0
 
-## 저장: 아침마다(업무 메모를 펼 때) 한 번. 웹판에서는 SKEAM이 이 파일을 계정 클라우드에 올린다.
-const SAVE_PATH := "user://save.txt"
+## 저장: 아침마다(업무 메모를 펼 때) 한 번, 고른 서류철(슬롯)에. 웹판에서는 SKEAM이 계정 클라우드에 올린다.
+const OLD_SAVE := "user://save.txt"
+const SLOTS := 3
+var slot := 1
+var hints_left := 3      # 옆자리 노 주무관에게 물어볼 수 있는 횟수 (하루)
+var hints_used := 0
 const SAVE_KEYS := ["day", "rep", "pen", "stress", "study", "flags", "money", "dept", "noh", "future", "notes", "note_seq",
 	"stocks", "stock_news", "stock_profit", "slack_caught"]
 
@@ -94,6 +98,7 @@ func start_day() -> void:
 	future.erase(day)
 	calls_today = {}
 	speed = 1.0
+	hints_left = 3
 	for code in stocks:
 		stocks[code]["open"] = stocks[code]["price"]
 	sos_used = false
@@ -112,31 +117,42 @@ func start_day() -> void:
 	_press_acc = 0.0
 
 
+func save_path(s: int) -> String:
+	return "user://save_%d.txt" % s
+
+
 func save_game() -> void:
 	if tutorial:
 		return
 	var d := {"rng_seed": rng.seed, "rng_state": rng.state}
 	for k in SAVE_KEYS:
 		d[k] = get(k)
-	var f := FileAccess.open(SAVE_PATH, FileAccess.WRITE)
+	var f := FileAccess.open(save_path(slot), FileAccess.WRITE)
 	if f:
 		f.store_string(var_to_str(d))
 
 
-func has_save() -> bool:
-	return FileAccess.file_exists(SAVE_PATH)
+func has_save(s := -1) -> bool:
+	return FileAccess.file_exists(save_path(slot if s < 0 else s))
 
 
-func save_day() -> int:
-	var d: Variant = _read_save()
-	return int(d.get("day", 0)) if d is Dictionary else 0
+func save_day(s := -1) -> int:
+	return int(save_info(s).get("day", 0))
 
 
-func load_game() -> bool:
-	var d: Variant = _read_save()
+## 서류철에 적어 보여 줄 것: 날, 평판, 잔고
+func save_info(s := -1) -> Dictionary:
+	var d: Variant = _read_save(slot if s < 0 else s)
+	return d if d is Dictionary else {}
+
+
+func load_game(s := -1) -> bool:
+	var want := slot if s < 0 else s
+	var d: Variant = _read_save(want)
 	if not d is Dictionary:
 		return false
 	new_game()
+	slot = want
 	for k in SAVE_KEYS:
 		if d.has(k):
 			set(k, d[k])
@@ -145,16 +161,33 @@ func load_game() -> bool:
 	return true   # 하루 시작(start_day)은 업무 메모의 [창구로 가기]에서
 
 
-func clear_save() -> void:
-	if has_save():
-		DirAccess.remove_absolute(SAVE_PATH)
+func clear_save(s := -1) -> void:
+	var want := slot if s < 0 else s
+	if has_save(want):
+		DirAccess.remove_absolute(save_path(want))
 
 
-func _read_save() -> Variant:
-	if not has_save():
+func _read_save(s: int) -> Variant:
+	# 슬롯이 생기기 전의 저장은 1번 서류철로 옮긴다
+	if s == 1 and not FileAccess.file_exists(save_path(1)) and FileAccess.file_exists(OLD_SAVE):
+		DirAccess.rename_absolute(OLD_SAVE, save_path(1))
+	if not FileAccess.file_exists(save_path(s)):
 		return null
-	var f := FileAccess.open(SAVE_PATH, FileAccess.READ)
+	var f := FileAccess.open(save_path(s), FileAccess.READ)
 	return str_to_var(f.get_as_text()) if f else null
+
+
+func week() -> int:
+	return 1 if day <= Content.WEEK_END else 2
+
+
+## 스트레스가 끝까지 차면 한 주에 한 번은 조퇴로 버틴다
+func can_leave_early() -> bool:
+	return not flags.has("early_w%d" % week())
+
+
+func d_day() -> int:
+	return Content.EXAM_DATE - int(Content.TODAY[day - 1])
 
 
 func tick(delta: float) -> void:
@@ -391,7 +424,7 @@ func add_stress(n: int) -> void:
 
 
 func check_fail() -> bool:
-	if stress >= 100:
+	if stress >= 100 and not can_leave_early():
 		fail_reason = "burnout"
 	elif rep <= 0:
 		fail_reason = "demoted"
@@ -486,6 +519,11 @@ func evening(choice: String) -> String:
 			add_stress(10)
 			money += 35000
 			return "불 꺼진 사무실에 남아 밀린 서류를 정리했다. 시간외수당 3만 5천 원이 붙는다."
+		"date":
+			add_stress(-30)
+			money -= 25000
+			flags["love_dinner"] = true
+			return "4번 창구 서하준과 동네 국숫집에 갔다. 창구 얘기, 이상한 민원인 얘기를 하다 보니 국수가 다 불었다. 헤어질 때 하준이 \"내일 마지막 날 잘해요\"라고 했다."
 		"study":
 			add_stress(5)
 			study += 1
@@ -690,6 +728,12 @@ func _epilogue() -> Array:
 		out.append("차동훈은 경찰에 넘겨졌고, 윤서영 씨의 전 남편에게는 접근금지 명령이 내려졌다. 윤서영 씨는 요즘 밤에 창문을 열어 둔다.")
 	elif flags.get("envelope_refused", false) or flags.get("envelope_guarded", false):
 		out.append("윤서영 씨는 자기 주소를 캐러 왔던 사람이 있었다는 걸 모른다. 그걸로 됐다.")
+	if flags.get("love_dinner", false):
+		out.append("4번 창구 서하준과는 요즘 퇴근길이 같다. 월요일 아침 책상 위에는 또 드링크가 놓여 있었다.")
+	elif flags.get("love_lunch", false):
+		out.append("서하준과는 점심 친구가 됐다. 김밥은 번갈아 가며 고른다.")
+	elif flags.get("love_friend", false) or flags.get("love_hurt", false):
+		out.append("4번 창구 드링크는 이제 노 주무관 책상에 놓인다. 노 주무관은 영문도 모르고 좋아한다.")
 	if flags.get("doyun_done", false):
 		out.append("윤도윤 어린이는 학교 숙제 '우리 동네 사람들'에 3번 창구를 그렸다. 그림 속 창구 유리에는 노란 메모가 붙어 있다.")
 	elif flags.get("doyun_cried", false):

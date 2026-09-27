@@ -71,6 +71,32 @@ const MEMOS := {
 	9: "오늘은 새 규정이 없어요. 대신 지난주부터 바뀐 게 많았으니 헷갈리면 규정집을 다시 봐요.\n\n내일은 인사 평가 자료를 올리는 날이에요. 이번 2주 기록이 그대로 들어가요.",
 	10: "2주 근무의 마지막 날이에요. 오후에 김태식 구의원이 주민센터를 둘러본대요. 누가 오든 규정은 똑같아요.\n\n저녁에 인사 평가 결과가 나와요. 내일이 승진 시험이죠? 수고 많았어요.",
 }
+## 승진 시험: 2주차 금요일 다음 날
+const EXAM_DATE := 20261024
+const EXAM_STUDY := 5
+
+## 아침 책상 위 드링크에 붙은 쪽지 [날, 쪽지, 필요한 플래그(빈칸이면 없음)]
+const LOVE_NOTES := [
+	[2, "첫 주 힘내요. 3번 창구 목소리가 옆 창구까지 들리는데, 친절해서 좋아요.", ""],
+	[4, "어제 그 할머니, 끝까지 도와주는 거 봤어요. 오늘도 파이팅.", ""],
+	[6, "주말 잘 쉬었어요? 드링크는 제 거 사면서 하나 더 샀어요. (진짜예요)", ""],
+	[8, "어제 점심 고마웠어요. 김밥은 다음엔 제가 고를게요.  4번 창구 하준", "love_lunch"],
+	[8, "지난번엔 갑자기 찾아가서 미안했어요. 그래도 드링크는 계속 놓을게요.  하준", "love_friend"],
+	[9, "내일이 마지막 날이죠? 오늘 퇴근하고 저녁 어때요? 좋으면 저녁에 연락 줘요.  하준", "love_lunch"],
+]
+
+## 옆자리 노 주무관에게 묻는 힌트 (틀린 곳의 사유별)
+const HINTS := {
+	"photo": "신분증 사진이랑 창구 앞 얼굴, 한번 나란히 봐 봐.",
+	"info": "이름이나 생년월일, 한 글자씩 다시 맞춰 봐.",
+	"expired": "그 면허증 유효기간 봤어?",
+	"proxy": "그거 본인 거 아니잖아. 위임장이랑 도장 봐.",
+	"seal": "전산에 인감 등록돼 있나 봐.",
+	"area": "주소가 우리 동 맞아?",
+	"restrict": "전산에 빨간 [주의] 떠 있지 않아?",
+	"system": "지금 전산 먹통이잖아. 전산 필요한 건 못 받아.",
+}
+
 ## 업무 메모 왼쪽에 크게 보이는 오늘의 핵심
 const MEMO_KEYS := {
 	1: ["번호 호출, 서류 대조, 도장, 서류 넣는 곳", "우리 일이 아니면 [부서 안내]에서 안내문", "소리 지르면 대꾸하지 말고 기다리기", "손이 올라가면 비상벨"],
@@ -155,7 +181,7 @@ const SEQUENCES := {
 	4: ["R", "d4_death", "d4_mee", "R", "d4_scam", "R", "d4_envelope", "R", "d4_haneul"],
 	5: ["R", "d5_auditor", "N", "d5_dalsu", "R"],
 	6: ["R", "w2_jiwoo", "R", "w2_minjae", "R", "w2_reissue", "R", "w2_mansu", "R"],
-	7: ["R", "w2_taemin", "R", "w2_changsik", "R", "w2_mee_again", "R", "R"],
+	7: ["R", "w2_taemin", "R", "w2_changsik", "R", "w2_hajun", "w2_mee_again", "R", "R"],
 	8: ["R", "R", "R", "w2_mee", "R", "w2_noh_favor", "R", "w2_jaehyuk", "R"],
 	9: ["R", "w2_seoyoung", "R", "w2_dalsu", "R", "w2_donghun", "R"],
 	10: ["R", "R", "w2_councilor", "R", "w2_minjae2", "R", "R"],
@@ -252,6 +278,7 @@ const LOOKS := {
 	"jaehyuk": {"skin": 1, "hair": 0, "style": 0, "glasses": false, "age": 0, "shape": 1, "shirt": 5, "img": "jaehyuk"},
 	"doyun": {"skin": 0, "hair": 0, "style": 0, "glasses": false, "age": 0, "shape": 0, "shirt": 4, "img": "doyun"},
 	"mijin": {"skin": 0, "hair": 2, "style": 1, "glasses": false, "age": 1, "shape": 1, "shirt": 3, "img": "mijin"},
+	"hajun": {"skin": 0, "hair": 0, "style": 0, "glasses": true, "age": 0, "shape": 1, "shirt": 3, "img": "hajun"},
 	"choi": {"skin": 1, "hair": 1, "style": 1, "glasses": true, "age": 1, "shape": 1, "shirt": 3, "img": "choi"},
 	"seoyoung": {"skin": 0, "hair": 0, "style": 2, "glasses": false, "age": 0, "shape": 1, "shirt": 6, "img": "seoyoung"},
 	"taesik": {"skin": 2, "hair": 3, "style": 3, "glasses": true, "age": 2, "shape": 2, "shirt": 7, "img": "taesik"},
@@ -313,7 +340,7 @@ const GIVEN := {
 		["서연", "수빈", "은지", "예린", "다은", "나래", "하늘", "지우", "채원", "서윤"]],
 }
 const SWAP_SYLLABLES := ["주", "정", "수", "진", "호", "희", "영", "석", "민", "경"]
-const STORY_NAMES := ["김도현", "문옥자", "박은비", "김태식", "오승민", "조현수", "차동훈", "윤서영", "노진수", "정다운", "한지우", "박달수", "이정숙", "오세린", "최준호", "김순자", "박영철", "장만식", "장만철", "양철민", "이미영", "윤성호", "송경아", "송기철", "정태민", "최만수", "남궁현", "남궁순애", "오민재", "황보창식", "김하늘", "도재혁", "윤도윤", "서미진"]
+const STORY_NAMES := ["김도현", "문옥자", "박은비", "김태식", "오승민", "조현수", "차동훈", "윤서영", "노진수", "정다운", "한지우", "박달수", "이정숙", "오세린", "최준호", "김순자", "박영철", "장만식", "장만철", "양철민", "이미영", "윤성호", "송경아", "송기철", "정태민", "최만수", "남궁현", "남궁순애", "오민재", "황보창식", "김하늘", "도재혁", "윤도윤", "서미진", "서하준"]
 
 const PURPOSES := ["회사에", "은행에", "학교에", "보험 회사에", "전세 대출 서류로"]
 const SEAL_PURPOSES := ["차를 팔려고요.", "부동산 계약이 있어서요.", "은행에서 달래서요."]
@@ -397,6 +424,25 @@ static func date_num(s: String) -> int:
 static func story(id: String, flags: Dictionary) -> Dictionary:
 	var c: Dictionary = {}
 	match id:
+		# ── 4번 창구 서하준: 책상 위 드링크의 주인 ──
+		"w2_hajun":
+			var L: Dictionary = LOOKS["hajun"]
+			c = {
+				"name": "서하준", "look": L, "mood": "angry", "docs": [], "records": {}, "lookup": [],
+				"intro": ["(4번 창구 서하준 주무관이 번호표도 없이 창구 앞에 와서 머뭇거린다)",
+					"저, 3번... 점심시간이라 잠깐 왔어요. 그동안 책상에 있던 드링크, 제가 놓은 거예요."],
+				"correct": "lunch",
+				"custom": [["lunch", "\"같이 점심 먹을래요?\""], ["thanks", "\"고마워요, 잘 마셨어요.\""]],
+				"outcomes": {
+					"lunch": {"result": "right", "mood": "happy", "flag": "love_lunch", "stress": -10,
+						"say": "(얼굴이 빨개진다) 네! 제가 김밥 두 줄 사 올게요."},
+					"thanks": {"result": "right", "mood": "sad", "flag": "love_friend", "stress": -3,
+						"say": "아, 네... 다음에도 힘내요. (머쓱하게 웃으며 돌아간다)"},
+					"eject": {"rep": -1, "result": "wrong", "mood": "sad", "flag": "love_hurt", "say": "......죄송해요. 바쁘신데.",
+						"warn": "최 팀장 메모: 동료한테까지 그러면 곤란해요."},
+					"guard": {"rep": -3, "result": "wrong", "mood": "sad", "flag": "love_hurt", "say": "네? 저 4번 창구 사람인데요..."},
+				},
+			}
 		# ── 혼자 온 초등학생과 퇴근길의 엄마 ──
 		"d3_doyun":
 			var L: Dictionary = LOOKS["doyun"]
@@ -409,7 +455,7 @@ static func story(id: String, flags: Dictionary) -> Dictionary:
 					["쓴 사람", "도윤 엄마 서미진"], ["연락처", "010-4417-2093"]]}],
 				"records": {"윤도윤": record("2015.09.02", "햇살동 23-5 202호", fam, false, "", L)},
 				"lookup": ["윤도윤"],
-				"correct": "call_mom",
+				"correct": "call_mom", "hint": "쪽지에 엄마 번호 있지 않아? 애 혼자는 못 떼 줘.",
 				"custom": [["call_mom", "쪽지의 번호로 엄마에게 전화한다"], ["send_home", "엄마랑 같이 오라고 돌려보낸다"]],
 				"outcomes": {
 					"call_mom": {"result": "right", "mood": "happy",
@@ -474,7 +520,7 @@ static func story(id: String, flags: Dictionary) -> Dictionary:
 					{"kind": "paper", "title": "등기사항전부증명서 (건물)", "rows": [["소재지", "햇살동 41-9 햇살하이츠"], ["소유자", "황보창식"],
 						["근저당", "○○은행 1억 2천만 원 (2026.10.13 설정)"]]}],
 				"records": {"황보창식": record("1968.11.03", "햇살동 41-9 햇살하이츠 101호", [["황보창식", "본인"]], true, "", L)},
-				"correct": "explain",
+				"correct": "explain", "hint": "남의 전입은 본인만 건드릴 수 있어. 집주인이라도 안 돼.",
 				"custom": [["explain", "본인만 할 수 있다고 안내한다"], ["erase", "세입자 전입을 빼 준다"]],
 				"outcomes": {
 					"explain": {"result": "right", "mood": "angry", "say": "본인만 된다고? 허, 참... 공무원들은 꽉 막혔어."},
@@ -536,7 +582,7 @@ static func story(id: String, flags: Dictionary) -> Dictionary:
 				"docs": [{"kind": "paper", "title": "학생증", "rows": [["이름", "김하늘"], ["학교", "햇살고등학교 3학년"], ["생년월일", "2008.05.21"]]},
 					form("주민등록표 초본 교부 신청서", "김하늘", "2008.05.21", "김하늘")],
 				"records": {"김하늘": record("2008.05.21", "햇살동 17-3", [["김성호", "본인"], ["김하늘", "자녀"]], false, "", L)},
-				"correct": "finger",
+				"correct": "finger", "hint": "지문 스캐너 있잖아. 주민등록증 발급받은 애면 그걸로 돼.",
 				"custom": [["finger", "지문 스캐너로 본인 확인을 한다"]],
 				"outcomes": {
 					"finger": {"result": "right", "mood": "normal", "say": "(스캐너에 엄지를 올린다) ......확인됐어요? 다행이다..."},
@@ -562,7 +608,7 @@ static func story(id: String, flags: Dictionary) -> Dictionary:
 				"docs": [id_card("도재혁", "1995.02.09", "햇살동 8-12", L, false, "2014.06.30"),
 					form("주민등록표 등본 교부 신청서", "도재혁", "1995.02.09", "도재혁")],
 				"records": {"도재혁": record("1995.02.09", "햇살동 8-12", [["도재혁", "본인"]], false, "", L)},
-				"correct": "stop_film",
+				"correct": "stop_film", "hint": "찍는 것부터 멈추라고 해. 모니터에 남의 정보 나와.",
 				"custom": [["stop_film", "촬영을 멈춰 달라고 한다"]],
 				"outcomes": {
 					"stop_film": {"result": "right", "mood": "sad", "say": "아, 네네... 알겠어요. (마지못해 휴대폰을 내린다) 여러분 잠깐만요~"},

@@ -75,7 +75,7 @@ func _process(delta: float) -> void:
 	elif randf() < delta / PATROL_EVERY:
 		patrol = PATROL_WARN
 		banner.visible = true
-		Sfx.play("leave", -2.0)
+		Sfx.steps(4, "heel", 0.3, -4.0)
 
 
 func _caught() -> void:
@@ -151,7 +151,7 @@ func _chat(body: VBoxContainer) -> void:
 			Game.flags[key] = i
 			Game.apply(pick[2])
 			Game.pass_time(3)
-			Sfx.play("paper", -8.0)
+			Sfx.play("chat", -6.0)
 			o._refresh_top()
 			o._show_slack())
 		body.add_child(b)
@@ -209,6 +209,7 @@ func _count(k: int) -> int:
 func open_cell(k: int) -> void:
 	if mine_over != "" or shown[k] != 0:
 		return
+	Sfx.play("tick", -8.0)
 	if mine[k]:
 		mine_over = "lose"
 		Game.add_stress(2)

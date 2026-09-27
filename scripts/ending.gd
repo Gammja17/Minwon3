@@ -25,6 +25,20 @@ func _ready() -> void:
 		%RestartBtn.pressed.connect(func():
 			Game.weekend()
 			get_tree().change_scene_to_file("res://scenes/briefing.tscn"))
-	else:
-		Game.clear_save()   # 끝난 게임은 이어 할 수 없다
+	elif title.begins_with("인사 평가"):
+		Game.clear_save()   # 2주를 끝낸 게임은 이어 할 수 없다
 		%RestartBtn.pressed.connect(func(): get_tree().change_scene_to_file("res://scenes/title.tscn"))
+	else:
+		# 병가, 징계 같은 중간 엔딩: 그날 아침 저장으로 돌아갈 수 있다
+		%RestartBtn.text = "처음 화면으로"
+		%RestartBtn.pressed.connect(func(): get_tree().change_scene_to_file("res://scenes/title.tscn"))
+		if Game.has_save():
+			var retry := Button.new()
+			retry.text = "%s 아침부터 다시" % Content.DATES[clampi(Game.save_day(), 1, Content.LAST_DAY) - 1].substr(6)
+			retry.custom_minimum_size = Vector2(0, 52)
+			retry.add_theme_font_size_override("font_size", 20)
+			retry.pressed.connect(func():
+				if Game.load_game():
+					get_tree().change_scene_to_file("res://scenes/briefing.tscn"))
+			%RestartBtn.get_parent().add_child(retry)
+			%RestartBtn.get_parent().move_child(retry, %RestartBtn.get_index())

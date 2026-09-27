@@ -7,7 +7,7 @@ const OFFICE := preload("res://scenes/office.tscn")
 const EXPECT_GOOD := ["dalsu_served", "grandma_helped", "mee_helped", "declined_gift", "scam_caught", "audit_pass",
 	"dalsu_done", "envelope_refused", "noh_asked", "mom_helped",
 	"jiwoo_moved", "okja_done", "mansu_thanked", "mee_extended", "noh_refused", "seoyoung_served", "donghun_left", "councilor_refused",
-	"minjae_fixed", "changsik_refused", "haneul_ok", "jaehyuk_ok", "minjae_saved", "doyun_done"]
+	"minjae_fixed", "changsik_refused", "haneul_ok", "jaehyuk_ok", "minjae_saved", "doyun_done", "love_lunch"]
 const EXPECT_BAD := ["taemin_caught", "mee_second", "dalsu_done", "donghun_left", "seoyoung_served"]
 
 var seen := {}
@@ -286,6 +286,37 @@ func _run_slack() -> void:
 	o.slack.patrol = 0.01
 	o.slack._process(0.05)
 	var caught: bool = Game.slack_caught == 1 and o.tab == "lookup"
+	# 드링크: 4일째 아침 책상 위에 있고, 마시면 쪽지가 나온다
+	var had_drink: bool = o.drink != null
+	var s0: int = Game.stress
+	if had_drink:
+		o._open_drink("쪽지")
+	var drank: bool = had_drink and Game.flags.has("drink_4") and Game.stress <= s0
+	# 힌트: 틀린 곳이 있는 민원에서 노 주무관이 짚어 준다. 세 번 쓰면 끝, 쓸수록 투덜댄다
+	var rng := RandomNumberGenerator.new()
+	rng.seed = 3
+	var hc: Dictionary = {}
+	for i in 3000:
+		var t := Content.make_routine(4, rng)
+		if t.get("phase") == "calm" and t.has("flaw") and not t["flaw"].get("pairs", []).is_empty() and t["docs"].size() > 1:
+			hc = t
+			break
+	Game.queue = [hc]
+	o._on_next()
+	await _frames(2)
+	var noh0: int = Game.noh
+	for i in 4:
+		o._hint()
+	var hinted: bool = Game.hints_left == 0 and Game.noh < noh0
+	# 스트레스가 끝까지 차도 이번 주 처음이면 병가가 아니다 (조퇴)
+	Game.stress = 100
+	var spared: bool = Game.can_leave_early() and not Game.check_fail()
+	Game.flags["early_w1"] = true
+	var burnt: bool = Game.check_fail()
+	Game.fail_reason = ""
+	Game.stress = 40
+	print("love/hint/stress: drink=%s hint=%s spared=%s burnt=%s" % [drank, hinted, spared, burnt])
+	ok = ok and drank and hinted and spared and burnt
 	print("slack: fast=%s/%s stock=%s/%s/%s mine=%s chat=%s caught=%s" % [fast_on, fast_off, bought, crashed, sold, won, chat_ok, caught])
 	ok = ok and fast_on and fast_off and bought and crashed and sold and won and chat_ok and caught
 	o.queue_free()

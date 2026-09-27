@@ -16,6 +16,7 @@ const FLAGS := {
 	"haneul_ok": "haneul_ok",
 	"jaehyuk_ok": "jaehyuk_ok",
 	"doyun_done": "doyun_done",
+	"love_dinner": "love_dinner",
 }
 
 
