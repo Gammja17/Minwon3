@@ -17,6 +17,12 @@
 | `ticket.mp3` | "Thermal Receipt Print & Cut" by twisterad3 (Freesound 413838) | CC0 — https://freesound.org/people/twisterad3/sounds/413838/ |
 | `paper1~3.ogg`, `cloth1~2.ogg`, `coin.ogg` | "RPG Audio" by Kenney — `bookFlip1~3`, `cloth1~2`, `handleCoins` | CC0 — https://kenney.nl/assets/rpg-audio |
 
+## 배경 음악 (`assets/music/`)
+
+| 파일 | 원작 | 라이선스 |
+|---|---|---|
+| `bgm.ogg` | "Chill lofi inspired" by omfgdude, loop edit by qubodup (OpenGameArt) | CC0: https://opengameart.org/content/chill-lofi-inspired-loop-edit |
+
 ## 초상화 (`assets/portraits/`)
 이야기 인물 30명(연습 창구의 최 팀장 포함)과 무작위 민원인 48명(`cit01~48`)의 초상화는 이 게임을 위해 VARCO(gpt-image-2.5)로 생성했다. 2×2 표정 시트를 `tools/cut_portraits.py`로 잘라 쓴다.
 
