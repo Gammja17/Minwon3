@@ -35,6 +35,7 @@ func _ready() -> void:
 	# ── 1회차: 규정대로 ──
 	Game.new_game()
 	Game.rng.seed = 7
+	_reroll_cast()
 	Game.flags.merge(CAST_GOOD, true)
 	Game.revisit_chance = 1.0
 	await _run_days(1, Content.LAST_DAY)
@@ -62,6 +63,7 @@ func _ready() -> void:
 	# ── 2회차: 1주차를 나쁘게 보냈다면 ──
 	Game.new_game()
 	Game.rng.seed = 11
+	_reroll_cast()
 	Game.flags.merge({"scam_escaped": true, "mee_hurt": true, "envelope_refused": true, "dalsu_ejected": true}, true)
 	Game.day = Content.WEEK_END + 1
 	await _run_days(Content.WEEK_END + 1, Content.LAST_DAY)
@@ -169,6 +171,14 @@ func _ready() -> void:
 	await _run_desk()
 	print("PLAYTEST " + ("OK" if ok else "FAIL"))
 	get_tree().quit()
+
+
+## 판의 속사정을 정해진 씨앗으로 다시 정한다 (시험이 매번 같은 판을 돌도록)
+func _reroll_cast() -> void:
+	for k in Game.flags.keys():
+		if String(k).begins_with("v_") or String(k).begins_with("day_"):
+			Game.flags.erase(k)
+	Game.roll_cast()
 
 
 ## 책상 관리, 편의점, 마이너스 통장, 판마다 달라지는 순서
@@ -433,6 +443,8 @@ func _run_days(from: int, to: int) -> void:
 		Game.start_day()
 		if day == Content.PAYDAY and Game.notices.has(Content.PAYDAY_NOTE):
 			seen["payday"] = true
+		if day == Content.OUTAGE_DAY:
+			Game.queue = ["R", "R", "R", "R"] + Game.queue   # 전산 장애 오전에 무작위 민원이 넉넉히 오도록
 		if day == 4:
 			Game.queue.insert(1, "N")   # SOS와 돌려보내기를 모두 거치도록 한 명 더
 			Game.dept["welfare"] = maxi(Game.dept["welfare"], 75)   # 부서가 늘어 복지팀 관계가 느리게 오르므로 SOS를 쓸 수 있게
@@ -440,7 +452,10 @@ func _run_days(from: int, to: int) -> void:
 		add_child(office)
 		office.set_process(false)
 		await get_tree().process_frame
-		for i in 12:
+		for i in 24:
+			# 열두 명을 받은 뒤에는 이야기 인물이 남아 있을 때만 더 부른다
+			if i >= 12 and not Game.queue.any(func(e): return e is Dictionary or String(e) != "R"):
+				break
 			if day == 3 and i == 4:
 				Game.clock = maxf(Game.clock, 720.0)   # 점심때
 			if day == Content.OUTAGE_DAY and i == 6:

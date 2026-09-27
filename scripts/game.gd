@@ -225,6 +225,8 @@ func spend(v: int) -> bool:
 	if not can_spend(v):
 		return false
 	money -= v
+	if money < 0:
+		flags["overdraft_used"] = true
 	return true
 
 
@@ -922,8 +924,10 @@ func _home() -> Array:
 		var interest := int(round(-money * OVERDRAFT_RATE / 12.0 / 10.0)) * 10
 		money -= interest
 		out.append("10월 말, 마이너스 통장 이자 %s원이 빠져나갔다. 11월 20일 월급날까지 %s으로 버텨야 한다." % [comma(interest), money_text()])
+	elif flags.get("overdraft_used", false):
+		out.append("끌어다 쓴 마이너스 통장은 월급으로 다 메웠다. 통장에 %s이 남았다." % won(money))
 	elif overdraft > 0:
-		out.append("마이너스 통장은 열어만 두고 끌어다 쓰지 않았다. 통장에 %s이 있다." % won(money))
+		out.append("마이너스 통장은 열어만 두고 한 번도 쓰지 않았다. 통장에 %s이 있다." % won(money))
 	else:
 		out.append("통장에 %s이 남았다. 11월 20일이 두 번째 월급날이다." % won(money))
 	if flags.get("rent_late", false):
