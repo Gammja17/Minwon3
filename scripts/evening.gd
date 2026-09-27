@@ -31,13 +31,13 @@ func _ready() -> void:
 
 func _render_summary() -> void:
 	var s: Dictionary = Game.stats
-	var t := "응대한 민원인 %d명  ·  잘 처리 %d  ·  실수 %d\n" % [s["served"], s["right"], s["wrong"]]
-	t += "평판 %d (%+d)  ·  벌점 %d (%+d)  ·  스트레스 %d\n" % [Game.rep, Game.rep - Game.day_start_rep, Game.pen, Game.pen - Game.day_start_pen, Game.stress]
-	t += "잔고 %s  (오늘 점심값·교통비 %s)\n" % [Game.won(Game.money), Game.won(Game.DAILY_COST)]
+	var t := "응대한 민원인 %d명   /   잘 처리 %d   /   실수 %d\n" % [s["served"], s["right"], s["wrong"]]
+	t += "평판 %d (%+d)   /   벌점 %d (%+d)   /   스트레스 %d\n" % [Game.rep, Game.rep - Game.day_start_rep, Game.pen, Game.pen - Game.day_start_pen, Game.stress]
+	t += "잔고 %s  (오늘 점심값과 교통비 %s)\n" % [Game.won(Game.money), Game.won(Game.DAILY_COST)]
 	if not Game.events.is_empty():
 		t += "\n[color=#ffd479]오늘 있었던 일[/color]\n"
 		for e in Game.events:
-			t += "· %s\n" % e
+			t += "▸ %s\n" % e
 	var sms := Game.mom_sms()
 	if sms != "":
 		t += "\n[color=#9fd3ff]엄마의 문자[/color]\n%s\n" % sms

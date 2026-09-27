@@ -68,6 +68,16 @@ achievements:
   - id: jaehyuk_ok
     name: "촬영은 잠시만"
     desc: "창구를 찍는 유튜버에게 촬영을 멈춰 달라고 한 뒤 서류를 떼 주세요"
+  # 딴짓
+  - id: mine_clear
+    name: "근무 중 지뢰 제거"
+    desc: "모니터 딴짓으로 지뢰찾기를 깨세요"
+  - id: stock_profit
+    name: "점심시간 개미"
+    desc: "햇살증권으로 10만 원 넘게 버세요"
+  - id: slack_caught
+    name: "현장 적발"
+    desc: "딴짓하다 최 팀장에게 들키세요"
   # 엔딩
   - id: two_weeks
     name: "2주 완주"

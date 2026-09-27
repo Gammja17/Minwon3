@@ -53,7 +53,7 @@ anchor_right = 1.0
 anchor_bottom = 1.0
 theme_override_colors/font_color = Color(1, 0.93, 0.8, 1)
 theme_override_font_sizes/font_size = 24
-text = "3번 창구  ·  주민등록 / 인감"
+text = "3번 창구 / 주민등록, 인감"
 horizontal_alignment = 1
 vertical_alignment = 1
 

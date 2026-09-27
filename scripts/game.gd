@@ -39,13 +39,21 @@ var notices: Array = []   # 창구 화면에 띄울 알림
 var revisit_chance := 0.6
 var later: Array = []      # 전산 장애로 돌려보낸 사람들 (오후에 다시 온다)
 var tutorial := false      # 연습 창구 중
+var speed := 1.0           # 빨리 감기 중이면 5
+var stocks := {}           # 햇살증권 {종목: {price, open, hold, cost}}
+var stock_news: Array = []
+var stock_profit := 0      # 판 주식에서 번 돈 (잃으면 줄어든다)
+var slack_caught := 0      # 딴짓하다 최 팀장에게 들킨 횟수
+var _stock_acc := 0.0
+var stock_rng := RandomNumberGenerator.new()
 var dalsu_used := false    # 박달수 씨 대기실 도우미 (하루 한 번)
 var notes: Array = []      # 창구 유리에 붙은 "좀 이따 다시 올게요" 메모 [{id, name, what, time}]
 var note_seq := 0
 
 ## 저장: 아침마다(업무 메모를 펼 때) 한 번. 웹판에서는 SKEAM이 이 파일을 계정 클라우드에 올린다.
 const SAVE_PATH := "user://save.txt"
-const SAVE_KEYS := ["day", "rep", "pen", "stress", "study", "flags", "money", "dept", "noh", "future", "notes", "note_seq"]
+const SAVE_KEYS := ["day", "rep", "pen", "stress", "study", "flags", "money", "dept", "noh", "future", "notes", "note_seq",
+	"stocks", "stock_news", "stock_profit", "slack_caught"]
 
 
 func new_game() -> void:
@@ -64,6 +72,13 @@ func new_game() -> void:
 	future = {}
 	notes = []
 	note_seq = 0
+	stocks = {}
+	for code in Content.STOCKS:
+		stocks[code] = {"price": Content.STOCKS[code]["price"], "open": Content.STOCKS[code]["price"], "hold": 0, "cost": 0}
+	stock_news = []
+	stock_profit = 0
+	slack_caught = 0
+	stock_rng.randomize()
 	start_day()
 
 
@@ -78,6 +93,9 @@ func start_day() -> void:
 		queue.insert(rng.randi_range(1, queue.size()), r)
 	future.erase(day)
 	calls_today = {}
+	speed = 1.0
+	for code in stocks:
+		stocks[code]["open"] = stocks[code]["price"]
 	sos_used = false
 	noh_helped = false
 	notices = []
@@ -142,8 +160,9 @@ func _read_save() -> Variant:
 func tick(delta: float) -> void:
 	if clock >= DAY_END:
 		return
-	var m := delta * MIN_PER_SEC
+	var m := delta * MIN_PER_SEC * speed
 	clock = minf(clock + m, DAY_END)
+	_tick_stocks(m)
 	_arrive_acc += m
 	if _arrive_acc >= ARRIVE_EVERY:
 		_arrive_acc -= ARRIVE_EVERY
@@ -383,6 +402,35 @@ func remove_note(id: int) -> void:
 	notes = notes.filter(func(n): return int(n["id"]) != id)
 
 
+## 햇살증권: 10분마다 조금씩 오르내리고, 정해진 날에는 뉴스가 터진다
+func _tick_stocks(minutes: float) -> void:
+	_stock_acc += minutes
+	while _stock_acc >= 10.0:
+		_stock_acc -= 10.0
+		for code in stocks:
+			var s: Dictionary = stocks[code]
+			s["price"] = maxi(500, int(round(float(s["price"]) * (1.0 + stock_rng.randf_range(-0.018, 0.019)) / 50.0)) * 50)
+	for i in Content.STOCK_EVENTS.size():
+		var ev: Array = Content.STOCK_EVENTS[i]
+		var key := "stock_ev_%d" % i
+		if day == int(ev[0]) and clock >= float(ev[1]) and not flags.has(key):
+			flags[key] = true
+			var s: Dictionary = stocks[ev[2]]
+			s["price"] = int(round(float(s["price"]) * (1.0 + float(ev[3]) / 100.0) / 50.0)) * 50
+			stock_news.append(ev[4])
+			if int(s["hold"]) > 0:
+				notices.append("보유 종목 뉴스: " + String(ev[4]))
+
+
+static func comma(v: int) -> String:
+	var t := str(absi(v))
+	var out := ""
+	while t.length() > 3:
+		out = "," + t.right(3) + out
+		t = t.left(t.length() - 3)
+	return ("-" if v < 0 else "") + t + out
+
+
 ## 업무 종료. 남은 대기 인원을 정산한다.
 func close_day() -> void:
 	# 메모를 붙이고 간 사람이 마감까지 못 왔으면 내일 아침에 온다
@@ -508,6 +556,8 @@ func final_findings() -> Array:
 		out.append("위조 신분증으로 인감증명서를 발급함")
 	if flags.get("minjae_erased", false):
 		out.append("집주인 말만 듣고 세입자의 전입신고를 빼 줌")
+	if slack_caught >= 2:
+		out.append("근무 시간 중 딴짓 %d번 적발" % slack_caught)
 	if flags.get("changsik_told", false):
 		out.append("세입자의 전입 날짜를 집주인에게 알려 줌")
 	if flags.get("jaehyuk_filmed", false):
@@ -683,6 +733,15 @@ func _home() -> Array:
 		out.append("25일, 월세 45만 원이 빠져나가지 못했다. 집주인에게 사정하는 문자를 보냈다.")
 	else:
 		out.append("25일, 월세 45만 원을 내고 통장에 %s이 남았다." % won(money))
+	var held := 0
+	for code in stocks:
+		held += int(stocks[code]["price"]) * int(stocks[code]["hold"])
+	if held > 0:
+		out.append("아직 팔지 않은 주식이 %s원어치 있다. 월세 통장에는 들어가지 않는 돈이다." % comma(held))
+	elif stock_profit >= 100000:
+		out.append("점심시간 몰래 한 주식으로 %s원을 벌었다. 팀장님은 모른다." % comma(stock_profit))
+	elif stock_profit <= -100000:
+		out.append("점심시간 몰래 한 주식으로 %s원을 날렸다. 다시는 안 한다고 다짐했다." % comma(-stock_profit))
 	if flags.get("mom_helped", false):
 		out.append("어머니 수술비를 보탠 건 잘한 일이었다. 그건 확실하다.")
 	elif flags.get("mom_declined", false):

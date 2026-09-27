@@ -26,6 +26,8 @@ func _ready() -> void:
 	if not tut_log.is_empty():
 		print("  [FAIL] 연습 창구에서 도전 과제가 나감: %s" % [tut_log])
 		ok = false
+	await _run_slack()
+	Engine.set_meta("skeam_log", [])
 	# ── 1회차: 규정대로 ──
 	Game.new_game()
 	Game.rng.seed = 7
@@ -72,6 +74,23 @@ func _ready() -> void:
 	var fired: bool = Game.week_report()["title"] == "파면"
 	print("bribe path: memo=%s fired=%s" % [bad_memo, fired])
 	ok = ok and bad_memo and fired
+
+	# ── 업무 메모 10일치가 열리는지 (소식 상자가 뜨는 날 포함) ──
+	for d in range(1, Content.LAST_DAY + 1):
+		Game.new_game()
+		Game.day = d
+		Game.flags = {"scam_done": true, "stalker_given": true} if d == 5 else {}
+		var br: Control = load("res://scenes/briefing.tscn").instantiate()
+		add_child(br)
+		await get_tree().process_frame
+		if br.get_node("%KeyList").get_child_count() < 2:
+			print("  [FAIL] %d일 오늘의 핵심이 비었음" % d)
+			ok = false
+		if d == 5 and not br.get_node("%News").visible:
+			print("  [FAIL] 5일 급한 소식이 안 보임")
+			ok = false
+		br.queue_free()
+	Game.clear_save()
 
 	# ── 엔딩 도전 과제: 완주 · S 평가 · 파면 ──
 	Engine.set_meta("skeam_log", [])
@@ -220,6 +239,57 @@ func _run_tutorial() -> void:
 	ok = ok and at_end and blocked and trashed
 	o.queue_free()
 	Game.tutorial = false
+
+
+## 빨리 감기와 딴짓(주식, 지뢰찾기, 들킴, 수다방)
+func _run_slack() -> void:
+	Game.new_game()
+	Game.day = 4
+	Game.start_day()
+	var o: Node = OFFICE.instantiate()
+	add_child(o)
+	o.set_process(false)
+	await _frames(2)
+	# 빨리 감기: 대기 0명이면 켜지고, 손님이 오면 저절로 멈춘다
+	Game.waiting = 0
+	o._on_next_btn()
+	var fast_on: bool = Game.speed > 1.0 and o.next_btn.text.contains("멈춤")
+	Game.tick(10.0)
+	o._update_next_btn()
+	var fast_off: bool = Game.speed == 1.0 and Game.waiting > 0 and o.next_btn.text == "번호 호출"
+	# 주식: 달빛바이오 10주를 사 두면 11시 뉴스에 떨어지고 알림이 온다
+	o._show_slack()
+	o.slack.app = "stock"
+	o._show_slack()
+	var before: int = Game.money
+	o.slack.trade("dalbit", 10)
+	var bought: bool = Game.stocks["dalbit"]["hold"] == 10 and Game.money < before
+	var p0: int = Game.stocks["dalbit"]["price"]
+	Game.clock = 661.0
+	Game.tick(0.01)
+	var crashed: bool = Game.stocks["dalbit"]["price"] < p0 * 0.8 and Game.notices.size() > 0
+	o.slack.trade("dalbit", -1)
+	var sold: bool = Game.stocks["dalbit"]["hold"] == 0 and Game.stock_profit < 0
+	# 지뢰찾기: 지뢰 아닌 칸을 다 열면 이긴다
+	o.slack.app = "mine"
+	o.slack._new_mines()
+	for k in o.slack.mine.size():
+		if not o.slack.mine[k]:
+			o.slack.open_cell(k)
+	var won: bool = o.slack.mine_over == "win"
+	# 수다방
+	o.slack.app = "chat"
+	o._show_slack()
+	var chat_ok: bool = Content.CHATS.has(4)
+	# 최 팀장에게 들킨다
+	o._show_slack()
+	o.slack.patrol = 0.01
+	o.slack._process(0.05)
+	var caught: bool = Game.slack_caught == 1 and o.tab == "lookup"
+	print("slack: fast=%s/%s stock=%s/%s/%s mine=%s chat=%s caught=%s" % [fast_on, fast_off, bought, crashed, sold, won, chat_ok, caught])
+	ok = ok and fast_on and fast_off and bought and crashed and sold and won and chat_ok and caught
+	o.queue_free()
+	await _frames(2)
 
 
 func _frames(n: int) -> void:

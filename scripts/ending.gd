@@ -18,7 +18,7 @@ func _ready() -> void:
 			t += "[color=#ffd479]%s[/color]\n" % String(line).trim_prefix("[").trim_suffix("]")
 		else:
 			t += "%s\n" % line
-	t += "\n[color=#8a8f98]평판 %d  ·  벌점 %d  ·  스트레스 %d  ·  공부 %d  ·  잔고 %s[/color]" % [Game.rep, Game.pen, Game.stress, Game.study, Game.won(Game.money)]
+	t += "\n[color=#8a8f98]평판 %d   /   벌점 %d   /   스트레스 %d   /   공부 %d   /   잔고 %s[/color]" % [Game.rep, Game.pen, Game.stress, Game.study, Game.won(Game.money)]
 	%Body.text = DocView.keep_words(t)
 	if e.get("continue", false):
 		%RestartBtn.text = "주말을 보내고 월요일 출근"

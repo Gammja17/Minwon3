@@ -24,7 +24,7 @@ static func make(doc: Dictionary, pick := Callable()) -> Control:
 				["old_addr", "이전 주소"], ["new_addr", "새 주소"]], pick), _corrected(doc))
 		"lease":
 			return _paper("주택 임대차 계약서", _rows(k, doc, [["landlord", "임대인"], ["tenant", "임차인"], ["tenant_birth", "임차인 생년월일"],
-				["addr", "임대 주택"], ["deposit", "보증금"], ["date", "계약일"]], pick), _note("임대인·임차인 도장 날인"), Color("f7f1dc"))
+				["addr", "임대 주택"], ["deposit", "보증금"], ["date", "계약일"]], pick), _note("임대인과 임차인 도장 날인"), Color("f7f1dc"))
 		"seal_reg":
 			return _paper("인감 신고서", _rows(k, doc, [["name", "성명"], ["birth", "생년월일"], ["addr", "주소"], ["seal", "신고할 도장"]], pick))
 		"proxy":
@@ -51,7 +51,7 @@ static func make(doc: Dictionary, pick := Callable()) -> Control:
 static func _corrected(doc: Dictionary) -> Control:
 	if not doc.get("corrected", false):
 		return null
-	var l := _label("정정 1곳 · 두 줄 긋고 신청인 서명", 14, RED)
+	var l := _label("정정 1곳, 두 줄 긋고 신청인 서명", 14, RED)
 	l.add_theme_font_override("font", BOLD)
 	return l
 

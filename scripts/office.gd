@@ -80,12 +80,13 @@ var messages: Array = []    # [시각, 보낸 사람, 내용, 색]
 var unread := 0
 var tutorial: Tutorial = null   # 연습 창구일 때만
 var notes_layer: Control       # 창구 유리에 붙은 메모들
+var slack: Slack               # 모니터 딴짓
 
 
 func _ready() -> void:
 	portrait_x = portrait_box.position.x
 	_style()
-	next_btn.pressed.connect(_on_next)
+	next_btn.pressed.connect(_on_next_btn)
 	stamp_ok.pressed.connect(pick_stamp.bind("ok"))
 	stamp_no.pressed.connect(pick_stamp.bind("no"))
 	guard_btn.pressed.connect(func(): _decide("guard"))
@@ -98,6 +99,7 @@ func _ready() -> void:
 	%TabLookup.pressed.connect(_show_lookup)
 	%TabDept.pressed.connect(_show_depts)
 	%TabMsg.pressed.connect(_show_messages)
+	%TabSlack.pressed.connect(_show_slack)
 	slot.gui_input.connect(_on_slot_input)
 	desk.gui_input.connect(_on_desk_input)
 	date_label.mouse_filter = Control.MOUSE_FILTER_STOP
@@ -110,6 +112,10 @@ func _ready() -> void:
 	_build_docs()
 	_refresh_all()
 	_refresh_top()
+	slack = Slack.new()
+	add_child(slack)
+	slack.setup(self)
+	%TabSlack.visible = not Game.tutorial
 	notes_layer = Control.new()
 	notes_layer.set_anchors_preset(Control.PRESET_FULL_RECT)
 	notes_layer.mouse_filter = Control.MOUSE_FILTER_IGNORE
@@ -185,6 +191,7 @@ func _process(delta: float) -> void:
 	if holding != "":
 		stamp_cursor.global_position = get_global_mouse_position() - Vector2(70, 30)
 	_update_slot()
+	_update_next_btn()
 	if notes_layer:
 		_pulse_note()
 	if Game.stress >= 100:
@@ -288,6 +295,40 @@ func _on_next() -> void:
 	elif tab == "dept":
 		_show_depts()
 	_refresh_all()
+
+
+## 기다리는 사람이 없으면 번호를 부를 수 없다. 대신 다음 손님이 올 때까지 시간을 빨리 감는다.
+func _idle() -> bool:
+	return not serving and not noon_pending and not Game.is_closed() and Game.waiting <= 0 and not Game.tutorial
+
+
+func _on_next_btn() -> void:
+	if _idle():
+		Game.speed = 1.0 if Game.speed > 1.0 else 5.0
+		_update_next_btn()
+		return
+	_on_next()
+
+
+func _update_next_btn() -> void:
+	if Game.speed > 1.0 and not _idle():
+		# 손님이 왔거나 마감·점심 일이 생기면 멈춘다
+		Game.speed = 1.0
+		if Game.waiting > 0 and not serving:
+			Sfx.play("call")
+	if Game.is_closed():
+		next_btn.text = "업무 종료"
+	elif _idle():
+		next_btn.text = "■ 멈춤" if Game.speed > 1.0 else "▶▶ 빨리 감기"
+	else:
+		next_btn.text = "번호 호출"
+	if not serving and desk_hint.visible:
+		if Game.is_closed():
+			desk_hint.text = "업무가 끝났어요. 벽의 [업무 종료]를 누르세요."
+		elif _idle():
+			desk_hint.text = "기다리는 사람이 없어요.\n[▶▶ 빨리 감기]를 누르면 다음 손님이 올 때까지 시간이 빨리 가요." if Game.speed <= 1.0 else "시간을 빨리 감는 중... 손님이 오면 멈춰요."
+		else:
+			desk_hint.text = "벽의 [번호 호출]을 눌러 민원인을 부르세요."
 
 
 ## 민원인이 낸 서류를 서류 넣는 곳에서 책상 위로 밀어 넣는다
@@ -542,7 +583,7 @@ func _refresh_props() -> void:
 	guard_btn.disabled = not s or phase == "gift"
 	inspect_btn.disabled = not (s and phase == "calm") and not inspecting
 	next_btn.disabled = serving or noon_pending
-	next_btn.text = "업무 종료" if Game.is_closed() else "번호 호출"
+	_update_next_btn()
 
 
 func _refresh_responses() -> void:
@@ -956,7 +997,7 @@ func _next_stage() -> void:
 	_refresh_all()
 
 
-## 신청서 이름·생년월일을 잘못 쓴 사람: 틀린 곳을 짚었으면 반려 대신 그 자리에서 고쳐 쓰게 할 수 있다
+## 신청서 이름과 생년월일을 잘못 쓴 사람: 틀린 곳을 짚었으면 반려 대신 그 자리에서 고쳐 쓰게 할 수 있다
 func _can_fix() -> bool:
 	return c.get("_found", false) and c.has("_valid") and not c.get("_fixed", false) \
 		and String(c.get("flaw", {}).get("reason", "")) == "info"
@@ -1069,7 +1110,7 @@ func _clear_screen(name: String) -> void:
 	tab = name
 	for ch in screen_body.get_children():
 		ch.queue_free()
-	for pair in [["lookup", %TabLookup], ["dept", %TabDept], ["msg", %TabMsg]]:
+	for pair in [["lookup", %TabLookup], ["dept", %TabDept], ["msg", %TabMsg], ["slack", %TabSlack]]:
 		pair[1].modulate = Color(1, 1, 1) if pair[0] == name else Color(0.75, 0.78, 0.82)
 	%TabMsg.text = "메신저" + (" (%d)" % unread if unread > 0 else "")
 
@@ -1101,7 +1142,7 @@ func _show_depts() -> void:
 		var word := Game.dept_word(key)
 		var info := VBoxContainer.new()
 		info.size_flags_horizontal = Control.SIZE_EXPAND_FILL
-		info.add_child(_text("%s  ·  %s  ·  관계 %s" % [d["name"], d["where"], word], 16, INK, true, 360))
+		info.add_child(_text("%s, %s, 관계 %s" % [d["name"], d["where"], word], 16, INK, true, 360))
 		info.add_child(_text(d["jobs"], 15, Color("3a444f"), false, 360))
 		row.add_child(info)
 		var b := Button.new()
@@ -1112,6 +1153,11 @@ func _show_depts() -> void:
 		row.add_child(b)
 		screen_body.add_child(row)
 		screen_body.add_child(HSeparator.new())
+
+
+func _show_slack() -> void:
+	_clear_screen("slack")
+	slack.build()
 
 
 func _show_messages() -> void:

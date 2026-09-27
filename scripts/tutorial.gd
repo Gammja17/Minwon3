@@ -7,7 +7,7 @@ const CASES := ["tut_ok", "tut_bad", "tut_transfer", "tut_rude"]
 const WANT := {"tut_ok": "process", "tut_bad": "reject:info", "tut_transfer": "transfer:welfare", "tut_rude": "process"}
 const WRONG := {
 	"tut_ok": "다시 봐요. 이름도 생년월일도 신분증, 전산과 다 맞아요. 이럴 땐 처리 도장이에요.",
-	"tut_bad": "잠깐, 신청서 생년월일이 신분증이랑 달라요. 반려하고, 사유는 '이름·생년월일 불일치'예요.",
+	"tut_bad": "잠깐, 신청서 생년월일이 신분증이랑 달라요. 반려하고, 사유는 '이름, 생년월일 불일치'예요.",
 	"tut_transfer": "기초연금은 복지팀 일이에요. [부서 안내]에서 복지팀 안내문을 뽑아 주세요.",
 	"tut_rude": "지금은 소리만 지르는 거라 내보내거나 비상벨을 누를 일은 아니에요. 대꾸하지 말고 기다려 봐요.",
 }
@@ -61,7 +61,7 @@ func _build_box() -> void:
 	col.mouse_filter = Control.MOUSE_FILTER_IGNORE
 	col.size_flags_horizontal = Control.SIZE_EXPAND_FILL
 	row.add_child(col)
-	var who := DocView._label("최 팀장 · 연습 창구", 15, Color("8a6a3a"))
+	var who := DocView._label("최 팀장 (연습 창구)", 15, Color("8a6a3a"))
 	who.add_theme_font_override("font", DocView.BOLD)
 	col.add_child(who)
 	say = DocView._label("", 17, INK)
@@ -96,7 +96,7 @@ func _build_steps() -> void:
 		{"call": "tut_ok", "at": func(): return o.next_btn,
 			"say": "실전 전에 한 번 해 봐요. 노 주무관이 민원인 역할을 해 줄 거예요.\n벽의 [번호 호출]을 누르세요."},
 		{"case": "tut_ok", "at": func(): return o.papers_layer, "confirm": true,
-			"say": "신분증과 신청서가 책상에 놓였죠? 서류는 끌어서 옮길 수 있어요.\n신청서의 이름·생년월일을 신분증, 그리고 오른쪽 모니터의 전산 기록과 비교해 보세요."},
+			"say": "신분증과 신청서가 책상에 놓였죠? 서류는 끌어서 옮길 수 있어요.\n신청서의 이름과 생년월일을 신분증, 그리고 오른쪽 모니터의 전산 기록과 비교해 보세요."},
 		{"case": "tut_ok", "at": func(): return o.stamp_ok, "done": func(): return o.holding == "ok" or _stamped("ok"),
 			"say": "다 맞네요. 오른쪽 받침대의 [처리 도장]을 집으세요."},
 		{"case": "tut_ok", "at": main, "done": func(): return _stamped("ok"),
@@ -117,7 +117,7 @@ func _build_steps() -> void:
 		{"case": "tut_bad", "at": func(): return o.stamp_no, "done": func(): return _stamped("no"),
 			"say": "지워졌죠? 다시 반려 도장을 찍으세요."},
 		{"case": "tut_bad", "at": func(): return o.reason_paper, "done": func(): return o.reason != "",
-			"say": "반려 사유서가 나왔어요. 생년월일이 틀렸으니 '이름·생년월일 불일치'에 체크하세요."},
+			"say": "반려 사유서가 나왔어요. 생년월일이 틀렸으니 '이름, 생년월일 불일치'에 체크하세요."},
 		{"case": "tut_bad", "at": func(): return o.slot, "done": gone,
 			"say": "서류 넣는 곳으로 돌려주세요."},
 		# 3. 다른 부서 일: 안내문

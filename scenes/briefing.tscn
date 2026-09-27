@@ -1,7 +1,8 @@
-[gd_scene load_steps=3 format=3]
+[gd_scene format=3]
 
 [ext_resource type="Script" path="res://scripts/briefing.gd" id="1"]
 [ext_resource type="FontFile" path="res://assets/fonts/Mulmaru.woff2" id="font_pix"]
+[ext_resource type="FontFile" path="res://assets/fonts/Pretendard-SemiBold.woff2" id="font_bold"]
 
 [node name="Briefing" type="Control"]
 layout_mode = 3
@@ -22,38 +23,116 @@ color = Color(0.17, 0.18, 0.2, 1)
 [node name="Paper" type="PanelContainer" parent="."]
 unique_name_in_owner = true
 layout_mode = 0
-offset_left = 220.0
-offset_top = 30.0
-offset_right = 1060.0
-offset_bottom = 690.0
+offset_left = 40.0
+offset_top = 24.0
+offset_right = 1240.0
+offset_bottom = 696.0
 
-[node name="VBox" type="VBoxContainer" parent="Paper"]
+[node name="HBox" type="HBoxContainer" parent="Paper"]
 layout_mode = 2
-theme_override_constants/separation = 12
+theme_override_constants/separation = 28
 
-[node name="Header" type="Label" parent="Paper/VBox"]
-theme_override_fonts/font = ExtResource("font_pix")
+[node name="Left" type="VBoxContainer" parent="Paper/HBox"]
+custom_minimum_size = Vector2(300, 0)
+layout_mode = 2
+theme_override_constants/separation = 10
+
+[node name="Header" type="Label" parent="Paper/HBox/Left"]
 unique_name_in_owner = true
 layout_mode = 2
 theme_override_colors/font_color = Color(0.17, 0.15, 0.13, 1)
+theme_override_fonts/font = ExtResource("font_pix")
 theme_override_font_sizes/font_size = 24
-text = "10월 12일 (월)  업무 메모"
+text = "10월 12일 (월)"
+horizontal_alignment = 1
 
-[node name="From" type="Label" parent="Paper/VBox"]
+[node name="Sub" type="Label" parent="Paper/HBox/Left"]
 layout_mode = 2
 theme_override_colors/font_color = Color(0.46, 0.42, 0.37, 1)
-text = "보낸 사람: 민원팀장 최영미"
+theme_override_fonts/font = ExtResource("font_bold")
+theme_override_font_sizes/font_size = 18
+text = "업무 메모"
+horizontal_alignment = 1
 
-[node name="Memo" type="RichTextLabel" parent="Paper/VBox"]
+[node name="Face" type="TextureRect" parent="Paper/HBox/Left"]
+unique_name_in_owner = true
+texture_filter = 1
+custom_minimum_size = Vector2(0, 170)
+layout_mode = 2
+expand_mode = 1
+stretch_mode = 5
+
+[node name="From" type="Label" parent="Paper/HBox/Left"]
+layout_mode = 2
+theme_override_colors/font_color = Color(0.46, 0.42, 0.37, 1)
+theme_override_font_sizes/font_size = 16
+text = "보낸 사람: 민원팀장 최영미"
+horizontal_alignment = 1
+
+[node name="Keys" type="PanelContainer" parent="Paper/HBox/Left"]
 unique_name_in_owner = true
 layout_mode = 2
 size_flags_vertical = 3
-theme_override_colors/default_color = Color(0.17, 0.15, 0.13, 1)
-theme_override_constants/line_separation = 6
-theme_override_font_sizes/normal_font_size = 18
-bbcode_enabled = true
 
-[node name="StartBtn" type="Button" parent="Paper/VBox"]
+[node name="KeyList" type="VBoxContainer" parent="Paper/HBox/Left/Keys"]
+unique_name_in_owner = true
+layout_mode = 2
+theme_override_constants/separation = 8
+
+[node name="Right" type="VBoxContainer" parent="Paper/HBox"]
+layout_mode = 2
+size_flags_horizontal = 3
+theme_override_constants/separation = 12
+
+[node name="News" type="PanelContainer" parent="Paper/HBox/Right"]
+unique_name_in_owner = true
+visible = false
+layout_mode = 2
+
+[node name="NewsText" type="Label" parent="Paper/HBox/Right/News"]
+unique_name_in_owner = true
+custom_minimum_size = Vector2(760, 0)
+layout_mode = 2
+theme_override_colors/font_color = Color(1, 1, 1, 1)
+theme_override_fonts/font = ExtResource("font_bold")
+theme_override_font_sizes/font_size = 16
+autowrap_mode = 3
+
+[node name="Scroll" type="ScrollContainer" parent="Paper/HBox/Right"]
+layout_mode = 2
+size_flags_vertical = 3
+horizontal_scroll_mode = 0
+
+[node name="Body" type="VBoxContainer" parent="Paper/HBox/Right/Scroll"]
+unique_name_in_owner = true
+layout_mode = 2
+size_flags_horizontal = 3
+theme_override_constants/separation = 14
+
+[node name="Memo" type="RichTextLabel" parent="Paper/HBox/Right/Scroll/Body"]
+unique_name_in_owner = true
+layout_mode = 2
+theme_override_colors/default_color = Color(0.17, 0.15, 0.13, 1)
+theme_override_constants/line_separation = 8
+theme_override_fonts/bold_font = ExtResource("font_bold")
+theme_override_font_sizes/normal_font_size = 18
+theme_override_font_sizes/bold_font_size = 18
+bbcode_enabled = true
+fit_content = true
+scroll_active = false
+
+[node name="Rules" type="VBoxContainer" parent="Paper/HBox/Right/Scroll/Body"]
+unique_name_in_owner = true
+layout_mode = 2
+theme_override_constants/separation = 8
+
+[node name="Foot" type="Label" parent="Paper/HBox/Right"]
+layout_mode = 2
+theme_override_colors/font_color = Color(0.46, 0.42, 0.37, 1)
+theme_override_font_sizes/font_size = 15
+text = "규정 전체와 부서 안내표는 창구의 [규정집]에서 언제든 볼 수 있어요."
+
+[node name="StartBtn" type="Button" parent="Paper/HBox/Right"]
 unique_name_in_owner = true
 custom_minimum_size = Vector2(0, 52)
 layout_mode = 2
