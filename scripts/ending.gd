@@ -24,7 +24,10 @@ func _ready() -> void:
 			t += "%s\n" % line
 	t += "\n[color=#8a8f98]평판 %d   /   벌점 %d   /   스트레스 %d   /   공부 %d   /   잔고 %s[/color]" % [Game.rep, Game.pen, Game.stress, Game.study, Game.money_text()]
 	%Body.text = DocView.keep_words(t)
-	if e.get("continue", false):
+	if e.get("continue", false) and Game.day == Content.WEEK2_END:
+		%RestartBtn.text = "토요일, 승진 시험 보러 가기"
+		%RestartBtn.pressed.connect(func(): get_tree().change_scene_to_file("res://scenes/exam.tscn"))
+	elif e.get("continue", false):
 		%RestartBtn.text = "주말을 보내고 월요일 출근"
 		%RestartBtn.pressed.connect(func():
 			Game.weekend()

@@ -45,7 +45,7 @@ func _ready() -> void:
 		print("  " + str(line))
 	_expect("1회차", EXPECT_GOOD)
 	for k in ["requeue", "escalate", "reason_return", "revisit", "sos", "noh_back", "dumped", "call_ok", "outage_wait", "outage_after", "dalsu_help", "payday", "photo_shown",
-			"stage", "note", "fix", "lease", "seal_reg"]:
+			"stage", "note", "fix", "lease", "seal_reg", "boss"]:
 		if not seen.has(k):
 			print("  [MISSING] %s" % k)
 			ok = false
@@ -246,6 +246,24 @@ func _run_desk() -> void:
 	shop._buy("choco", 1500)
 	var bought := Game.desk_items.size() == 1 and Game.money == 380000 - 1500
 	shop.queue_free()
+	# 승진 시험: 공부한 문제는 틀린 보기 하나가 지워지고, 세 문제를 맞히면 합격
+	Game.new_game()
+	Game.day = Content.WEEK2_END
+	Game.study = 2
+	var ex: Control = load("res://scenes/exam.tscn").instantiate()
+	add_child(ex)
+	await _frames(1)
+	var q0: Array = ex.questions[0]
+	var off: Array = ex.box.get_children().filter(func(b): return b is Button and b.disabled)
+	var hinted: bool = off.size() == 1 and not String(off[0].text).contains(String(q0[1][int(q0[2])]))
+	for i in 5:
+		var q: Array = ex.questions[ex.index]
+		ex._answer(int(q[2]) if i < 3 else (int(q[2]) + 1) % 4)
+		ex._next()
+	var exam_ok: bool = hinted and Game.flags.has("exam_pass") and int(Game.flags["exam_score"]) == 3 and Game.exam_text().contains("합격")
+	ex.queue_free()
+	print("exam: hinted=%s passed=%s" % [hinted, exam_ok])
+	ok = ok and exam_ok
 	print("desk: varied=%s blocked=%s loaned=%s circular=%s ate=%s slip_left=%s kept=%s thrown=%s messy=%s persisted=%s bought=%s" %
 		[varied, blocked, loaned, circular, ate, slip_left, kept, thrown, messy, persisted, bought])
 	ok = ok and varied and blocked and loaned and circular and ate and slip_left and kept and thrown and messy and persisted and bought
@@ -481,6 +499,10 @@ func _run_days(from: int, to: int) -> void:
 			if not rep.get("continue", false):
 				ok = false
 				return
+			if day == Content.WEEK2_END:
+				# 토요일 승진 시험: 다섯 문제 중 넷을 맞힌다
+				Game.finish_exam(4)
+				Game.weekend_two()
 			Game.weekend()
 		elif day < Content.LAST_DAY:
 			Game.evening("rest" if Game.stress >= 60 else ("study" if day % 2 == 0 else "friend"))
@@ -552,6 +574,11 @@ func _play(office: Node) -> void:
 			"gift":
 				office._decide("decline")
 			_:
+				if office.boss_available() and c.get("correct") != "process":
+					# 승진 시험 합격: 하루 한 번 팀장님께 결재
+					seen["boss"] = true
+					office._boss_decide()
+					continue
 				office._show_lookup()
 				if Game.day > Content.WEEK_END and not Game.outage():
 					seen["photo_shown"] = true

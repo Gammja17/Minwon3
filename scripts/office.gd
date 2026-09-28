@@ -677,6 +677,8 @@ func _refresh_responses() -> void:
 			_response(pair[1], _decide.bind(pair[0]), true)
 	if dalsu_available():
 		_response("(대기석의 박달수 씨가 다가온다)", _dalsu_help, true)
+	if boss_available():
+		_response("최 팀장에게 결재 올리기 (오늘 한 번)", _boss_decide, true)
 	if phase != "gift":
 		var row := HBoxContainer.new()
 		row.add_theme_constant_override("separation", 4)
@@ -725,6 +727,39 @@ func _dalsu_help() -> void:
 	_log("[b][color=%s]박달수[/color][/b]  이봐요, 젊은 사람 일하는 데서 그렇게 소리 지르면 쓰나. 나도 여기서 소리 좀 질러 봤는데, 아무 소용 없어. 저기 앉아서 숨 좀 돌리고 와요.\n" % C_THEM)
 	Game.pass_time(2)
 	_calm(c["ignore"]["then"])
+
+
+## 승진 시험에 붙은 3주차: 하루 한 번, 판단하기 어려운 민원을 최 팀장에게 결재 올린다. 기다리는 동안 시간이 간다.
+func boss_available() -> bool:
+	return serving and not leaving and not Game.tutorial and Game.flags.has("exam_pass") and Game.day > Content.WEEK2_END 		and not Game.flags.has("boss_%d" % Game.day) and c.get("phase") == "calm"
+
+
+func _boss_decide() -> void:
+	Game.flags["boss_%d" % Game.day] = true
+	Game.flags["boss_used"] = int(Game.flags.get("boss_used", 0)) + 1
+	Game.pass_time(10)
+	var action: String = c.get("correct", "process")
+	var word := "이렇게 처리하면 돼요."
+	if action == "reject":
+		var why: String = c.get("flaw", {}).get("reason", "info")
+		action = "reject:" + why
+		word = "반려예요. 사유는 '%s'." % Content.REASONS.get(why, "")
+	elif action == "process":
+		word = "문제없어요. 떼 드려요."
+	elif action == "guard":
+		word = "이건 청원경찰 불러야 해요. 지금요."
+	elif action.begins_with("transfer:"):
+		word = "우리 일이 아니에요. %s 쪽으로 안내해요." % Content.dept_name(action.substr(9))
+	c["_called"] = true   # 필요한 확인 전화도 팀장이 대신 했다
+	_log("[color=%s][i](결재판에 서류를 끼워 최 팀장 자리로 간다. 최 팀장이 한참 넘겨 본다)[/i][/color]
+" % C_ACT)
+	_log("[b][color=%s]최 팀장[/color][/b]  %s
+" % [C_THEM, word])
+	if action.begins_with("transfer:"):
+		print_slip(action.substr(9))
+		return_papers()
+	else:
+		_decide(action)
 
 
 ## 복지팀과 사이가 좋으면 하루 한 번, 소리만 지르는 민원인을 정다운이 데려간다. 위험한 사람에게는 못 쓴다.
@@ -1287,7 +1322,7 @@ func _build_exam_label() -> void:
 	exam_label.add_theme_font_size_override("font_size", 16)
 	exam_label.add_theme_color_override("font_color", Color("c7d2de"))
 	exam_label.mouse_filter = Control.MOUSE_FILTER_IGNORE
-	exam_label.text = "승진 시험 D-%d   공부 %d/%d" % [Game.d_day(), Game.study, Content.EXAM_STUDY]
+	exam_label.text = Game.exam_text()
 	%Wall.add_child(exam_label)
 
 

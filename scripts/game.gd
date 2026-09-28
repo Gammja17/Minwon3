@@ -569,7 +569,46 @@ func memo_for_today() -> String:
 		m = Content.STALKER_NEWS + m
 	if day == 6 and flags.get("dalsu_done", false):
 		m += Content.DALSU_HELPER_MEMO
+	if day == Content.WEEK2_END + 1:
+		if flags.has("exam_pass"):
+			m = "먼저, 승진 시험 합격 축하해요! 11월 인사 때 8급으로 올라가요. 그래서 이번 주부터는 판단하기 어려운 민원이 오면 하루 한 번 저한테 [결재]를 올려요. 제가 같이 볼게요.
+
+" + m
+		elif flags.has("exam_fail"):
+			m = "시험은 아쉽게 됐어요. 기회는 또 있어요. 다만 수습 평가표에 시험 결과도 한 줄 들어가니까, 이번 주 창구 기록으로 만회해 봐요.
+
+" + m
 	return m
+
+
+## 벽, 업무 메모, 저녁 화면에 붙는 승진 시험 한 줄
+func exam_text() -> String:
+	if flags.has("exam_pass"):
+		return "승진 시험 합격 (8급 승진 예정)"
+	if flags.has("exam_fail"):
+		return "승진 시험 불합격"
+	return "승진 시험 D-%d (10/24 토)   공부 %d/%d" % [d_day(), mini(study, Content.EXAM_STUDY), Content.EXAM_STUDY]
+
+
+## 시험지 다섯 문제: 판마다 다른 문제가 나온다
+func exam_questions() -> Array:
+	var pool: Array = Content.EXAM_QUESTIONS.duplicate()
+	var out: Array = []
+	for i in 5:
+		out.append(pool.pop_at(rng.randi_range(0, pool.size() - 1)))
+	return out
+
+
+## 시험이 끝났다. 붙으면 3주차에 하루 한 번 팀장님께 결재를 올릴 수 있다.
+func finish_exam(score: int) -> void:
+	flags["exam_score"] = score
+	if score >= Content.EXAM_PASS:
+		flags["exam_pass"] = true
+		add_stress(-5)
+		noh = clampi(noh + 8, 0, 100)
+	else:
+		flags["exam_fail"] = true
+		add_stress(10)
 
 
 func new_rules_today() -> Array:
@@ -599,6 +638,9 @@ func evening(choice: String) -> String:
 			spend(25000)
 			flags["love_dinner"] = true
 			return "4번 창구 서하준과 동네 국숫집에 갔다. 창구 얘기, 이상한 민원인 얘기를 하다 보니 국수가 다 불었다. 헤어질 때 하준이 \"내일 금요일도 힘내요\"라고 했다."
+		"walk":
+			add_stress(-15)
+			return "퇴근길에 동네를 한 바퀴 돌았다. 주민센터 앞 붕어빵 트럭에서 팥 붕어빵 세 개를 샀다. 창구에서 본 얼굴을 두어 번 마주쳤다."
 		"study":
 			add_stress(5)
 			study += 1
@@ -744,21 +786,22 @@ func week_report() -> Dictionary:
 		for f in findings:
 			body.append("- " + f)
 	body.append("")
-	body.append("[주말]")
 	if second:
-		body += _weekend_two()
+		body.append("[토요일]")
+		body.append("내일은 승진 시험이다. 저녁마다 공부한 날은 %d번이었다." % study)
 	else:
+		body.append("[주말]")
 		body.append("토요일에는 늦잠을 잤다. 일요일 저녁, 다음 주 출근 가방을 챙겼다.")
 	return {"title": title, "body": body, "continue": true}
 
 
-## 2주차 주말: 어머니 댁에 다녀오고(기차표), 25일 일요일에 월세가 빠져나간다
-func _weekend_two() -> Array:
+## 2주차 일요일(시험 다음 날): 어머니 댁에 다녀오고(기차표), 25일에 월세가 빠져나간다
+func weekend_two() -> Array:
 	var out: Array = []
 	if spend(Content.TRIP_COST):
 		flags["mom_visit"] = true
 		add_stress(-10)
-		out.append("토요일에 기차를 탔다. 어머니는 지팡이를 짚고 역까지 마중을 나왔다. 반찬 통을 세 개나 들려 보냈다.")
+		out.append("일요일 아침 기차를 탔다. 어머니는 지팡이를 짚고 역까지 마중을 나왔다. 반찬 통을 세 개나 들려 보냈다.")
 	else:
 		out.append("기차표 살 돈이 없어서 전화로 대신했다. 어머니는 \"반찬은 택배로 보낼게\"라고 했다.")
 	if spend(Content.RENT):
@@ -786,7 +829,7 @@ func ending() -> Dictionary:
 		flags["lie_counted"] = true
 		pen += 2
 	var findings := final_findings()
-	var score := rep - pen * 4 - findings.size() * 8
+	var score := rep - pen * 4 - findings.size() * 8 - (6 if flags.has("exam_fail") else 0)
 	var title := ""
 	var body: Array = []
 	if score >= 70:
@@ -808,10 +851,14 @@ func ending() -> Dictionary:
 			body.append("- " + f)
 	body.append("")
 	body.append("[승진 시험]")
-	if study >= Content.EXAM_STUDY:
-		body.append("토요일 시험장에서 문제를 넘길 때마다 저녁마다 풀던 기출문제가 떠올랐다. 합격이다. 8급 승진 후보에 이름이 올랐다.")
+	if flags.has("exam_pass"):
+		body.append("10월 24일 시험에서 다섯 문제 중 %d문제를 맞혀 합격했다. 11월 인사에서 8급으로 올라가고, 월급이 한 호봉 오른다." % int(flags.get("exam_score", 3)))
+		if int(flags.get("boss_used", 0)) > 0:
+			body.append("3주차에 결재를 %d번 올렸다. 최 팀장은 \"물어볼 줄 아는 것도 실력\"이라고 적었다." % int(flags["boss_used"]))
+	elif flags.has("exam_fail"):
+		body.append("10월 24일 시험에서 다섯 문제 중 %d문제밖에 못 맞혔다. 수습 평가표에 '자기 계발 노력 필요'라고 적혔다. 다음 시험은 내년 봄이다." % int(flags.get("exam_score", 0)))
 	else:
-		body.append("토요일 시험장에서 절반쯤은 처음 보는 문제였다. 저녁마다 공부한 날이 %d번뿐이었다. 다음 기회를 노려야 한다." % study)
+		body.append("승진 시험은 보지 못했다.")
 	body.append("")
 	body.append("[그 뒤의 이야기]")
 	for line in _epilogue():

@@ -6,7 +6,8 @@ const BOLD: Font = preload("res://assets/fonts/Pretendard-SemiBold.woff2")
 const CHOICES := [
 	["rest", "집에서 푹 쉰다", "스트레스 -35", "res://assets/ui/ev_rest.png", 0],
 	["friend", "동기 정다운과 한잔", "스트레스 -20, 2만 원\n동네 소식을 듣는다", "res://assets/ui/ev_friend.png", 20000],
-	["study", "승진 시험 공부", "스트레스 +5, 공부 +1", "res://assets/ui/ev_study.png", 0],
+	["study", "승진 시험 공부", "스트레스 +5, 공부 +1
+시험에 아는 문제가 는다", "res://assets/ui/ev_study.png", 0],
 	["overtime", "남아서 야근", "수당 +3.5만 원, 스트레스 +10", "res://assets/ui/ev_overtime.png", 0],
 ]
 const MOM_MONEY := 500000
@@ -114,9 +115,7 @@ func _money_changed() -> void:
 
 
 func _update_exam() -> void:
-	var left := Content.EXAM_STUDY - Game.study
-	%Exam.text = "승진 시험 D-%d   공부 %d/%d   %s" % [Game.d_day(), Game.study, Content.EXAM_STUDY,
-		"(합격권!)" if left <= 0 else "(%d번 더 하면 합격권)" % left]
+	%Exam.text = Game.exam_text()
 
 
 func _render_summary() -> void:
@@ -139,6 +138,10 @@ func _show_evening_choices() -> void:
 		b.queue_free()
 	%Ask.text = "퇴근 후에는..."
 	for ch in CHOICES:
+		if ch[0] == "study" and Game.day > Content.WEEK2_END:
+			# 시험이 끝난 3주차에는 공부 대신 산책
+			_card("동네 한 바퀴 산책", "스트레스 -15", load("res://assets/ui/ev_rest.png"), _choose.bind("walk"))
+			continue
 		var cost: int = ch[4]
 		_card(ch[1], ch[2] if Game.can_spend(cost) else "잔고가 모자란다", load(ch[3]), _choose.bind(ch[0]), Game.can_spend(cost))
 	# 서하준과 점심을 먹은 사이라면, 2주차 목요일 저녁 약속

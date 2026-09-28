@@ -16,7 +16,7 @@ func _ready() -> void:
 	%Keys.add_theme_stylebox_override("panel", _box(Color("fff4c7"), Color("e0c56a"), 14))
 	%News.add_theme_stylebox_override("panel", _box(Color("a8322a"), Color("a8322a"), 14))
 	%Header.text = Content.DATES[Game.day - 1]
-	var exam := _label("승진 시험 D-%d   공부 %d/%d" % [Game.d_day(), Game.study, Content.EXAM_STUDY], 16, Color("2c5a8a"), true)
+	var exam := _label(Game.exam_text(), 16, Color("2c5a8a"), true)
 	exam.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
 	%Header.get_parent().add_child(exam)
 	%Header.get_parent().move_child(exam, 2)

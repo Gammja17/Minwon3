@@ -36,6 +36,13 @@ func _ready() -> void:
 		Game.day = clampi(int(hash.substr(4)), 1, Content.LAST_DAY)
 		get_tree().change_scene_to_file.call_deferred("res://scenes/briefing.tscn")
 		return
+	# 개발용: #exam 이면 2주차 토요일 승진 시험을 바로 본다
+	if hash == "#exam":
+		Game.new_game()
+		Game.day = Content.WEEK2_END
+		Game.study = 3
+		get_tree().change_scene_to_file.call_deferred("res://scenes/exam.tscn")
+		return
 	# 개발용: 주소 끝에 #evening 을 붙이면 저녁 화면을 바로 본다
 	if hash == "#evening":
 		Game.new_game()
@@ -150,7 +157,8 @@ func _slot_card(s: int) -> Control:
 		v.add_child(_label("평판 %d   벌점 %d" % [int(info.get("rep", 0)), int(info.get("pen", 0))], 17, Color("5a4f40"), BOLD))
 		var m := int(info.get("money", 0))
 		v.add_child(_label("잔고 %s" % (Game.won(m) if m >= 0 else "마이너스 " + Game.won(-m)), 17, Color("5a4f40"), BOLD))
-		v.add_child(_label("공부 %d/%d" % [int(info.get("study", 0)), Content.EXAM_STUDY], 17, Color("5a4f40"), BOLD))
+		var ex := "승진 시험 합격" if info.get("flags", {}).has("exam_pass") else ("승진 시험 불합격" if info.get("flags", {}).has("exam_fail") 			else "공부 %d/%d" % [mini(int(info.get("study", 0)), Content.EXAM_STUDY), Content.EXAM_STUDY])
+		v.add_child(_label(ex, 17, Color("5a4f40"), BOLD))
 		var gap := Control.new()
 		gap.size_flags_vertical = Control.SIZE_EXPAND_FILL
 		v.add_child(gap)
